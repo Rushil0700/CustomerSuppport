@@ -1,0 +1,110 @@
+# The RAG engine is a StatefulSet rather than a Deployment: each replica keeps
+# its own on-disk Chroma index, so it needs stable storage. The index is
+# rebuilt from support-kb by the init container, which makes replicas
+# interchangeable despite the local state.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rag-engine
+  namespace: support
+  labels: {app: rag-engine, app.kubernetes.io/part-of: support-automation}
+spec:
+  serviceName: rag-engine
+  replicas: 2
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: {app: rag-engine}
+  template:
+    metadata:
+      labels: {app: rag-engine}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        # Builds the vector index before the pod is allowed to serve traffic, so
+        # /ready never reports healthy against an empty collection.
+        - name: seed-index
+          image: ghcr.io/OWNER/support-rag-engine:latest
+          command: ["python", "-c"]
+          args:
+            - |
+              import asyncio
+              from rag_engine.indexer import build_index
+              asyncio.run(build_index(reset=False))
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {cpu: "2", memory: 2Gi}
+          volumeMounts:
+            - {name: chroma, mountPath: /data/chroma}
+      containers:
+        - name: rag-engine
+          image: ghcr.io/OWNER/support-rag-engine:latest
+          ports: [{containerPort: 8002, name: http}]
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            # sentence-transformers holds the model in memory; under-requesting
+            # here causes OOM kills under concurrent load.
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {cpu: "2", memory: 2Gi}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: chroma, mountPath: /data/chroma}
+            - {name: tmp, mountPath: /tmp}
+            - {name: hf-cache, mountPath: /home/support/.cache/huggingface}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: hf-cache
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata: {name: chroma}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 10Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-engine
+  namespace: support
+  labels: {app: rag-engine}
+spec:
+  selector: {app: rag-engine}
+  ports: [{port: 8002, targetPort: http, name: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rag-engine
+  namespace: support
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: rag-engine}

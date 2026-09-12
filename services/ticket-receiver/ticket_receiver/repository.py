@@ -72,7 +72,10 @@ class TicketRepository:
             "priority": payload.priority,
             "external_ref": payload.external_ref,
             "tags": payload.tags,
-            "metadata": payload.metadata,
+            # The ORM attribute name, not the column name: ``Ticket.metadata`` is
+            # SQLAlchemy's own MetaData object, so keying on "metadata" here
+            # silently resolves to the wrong thing.
+            "metadata_json": payload.metadata,
         }
 
         statement = (

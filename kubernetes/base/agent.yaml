@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  namespace: support
+  labels: {app: agent, app.kubernetes.io/part-of: support-automation}
+spec:
+  replicas: 4
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app: agent}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 2, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: agent}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8003"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: agent
+          image: ghcr.io/OWNER/support-agent:latest
+          ports: [{containerPort: 8003, name: http}]
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            # The agent itself is cheap - it is an HTTP client waiting on Ollama.
+            # Scale it on concurrency, not CPU.
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            # Ollama warm-up and model pulls take a while; be patient before
+            # pulling a pod out of rotation.
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  namespace: support
+  labels: {app: agent}
+spec:
+  selector: {app: agent}
+  ports: [{port: 8003, targetPort: http, name: http}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent
+  namespace: support
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: agent}
+  minReplicas: 4
+  maxReplicas: 24
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 65}}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies: [{type: Percent, value: 100, periodSeconds: 30}]
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent
+  namespace: support
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: {app: agent}
+---
+# Ollama: one replica per GPU node. This is the real capacity constraint on the
+# whole system, so it is sized deliberately rather than autoscaled.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ollama
+  namespace: support
+  labels: {app: ollama, app.kubernetes.io/part-of: support-automation}
+spec:
+  serviceName: ollama
+  replicas: 2
+  selector:
+    matchLabels: {app: ollama}
+  template:
+    metadata:
+      labels: {app: ollama}
+    spec:
+      nodeSelector:
+        # Matches the GPU node group; drop this to run on CPU (much slower).
+        cloud.google.com/gke-accelerator: nvidia-tesla-t4
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports: [{containerPort: 11434, name: http}]
+          env:
+            - {name: OLLAMA_KEEP_ALIVE, value: "60m"}
+            - {name: OLLAMA_NUM_PARALLEL, value: "4"}
+            - {name: OLLAMA_MAX_LOADED_MODELS, value: "1"}
+          resources:
+            requests: {cpu: "2", memory: 8Gi, nvidia.com/gpu: "1"}
+            limits: {cpu: "4", memory: 16Gi, nvidia.com/gpu: "1"}
+          # Pull the model on first start; subsequent restarts find it on the PVC.
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5 && ollama pull mistral:7b || true"]
+          readinessProbe:
+            httpGet: {path: /api/tags, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /api/tags, port: http}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - {name: models, mountPath: /root/.ollama}
+  volumeClaimTemplates:
+    - metadata: {name: models}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 50Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: support
+  labels: {app: ollama}
+spec:
+  selector: {app: ollama}
+  ports: [{port: 11434, targetPort: http, name: http}]

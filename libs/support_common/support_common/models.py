@@ -78,7 +78,10 @@ class Ticket(TimestampMixin, Base):
     __tablename__ = "tickets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ticket_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, index=True)
+    # A table-level constraint rather than `unique=True` on the column: the
+    # child tables' foreign keys target ticket_id, and Postgres only accepts a
+    # FK against a constraint, not against a separately-created unique index.
+    ticket_id: Mapped[str] = mapped_column(String(32), nullable=False)
 
     subject: Mapped[str] = mapped_column(String(500), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -123,6 +126,7 @@ class Ticket(TimestampMixin, Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("ticket_id", name="uq_tickets_ticket_id"),
         UniqueConstraint("channel", "external_ref", name="uq_tickets_channel_external_ref"),
         Index("ix_tickets_status_created_at", "status", "created_at"),
         Index("ix_tickets_channel_created_at", "channel", "created_at"),

@@ -210,7 +210,7 @@ class Citation(Base):
     doc_id: str
     title: str
     source: str
-    score: float
+    score: float = Field(ge=0.0, le=1.0)
 
 
 class AgentResult(Base):

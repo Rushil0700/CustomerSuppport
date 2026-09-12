@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcher
+  namespace: support
+  labels: {app: dispatcher, app.kubernetes.io/part-of: support-automation}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app: dispatcher}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: dispatcher}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8004"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: dispatcher
+          image: ghcr.io/OWNER/support-dispatcher:latest
+          ports: [{containerPort: 8004, name: http}]
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dispatcher
+  namespace: support
+  labels: {app: dispatcher}
+spec:
+  selector: {app: dispatcher}
+  ports: [{port: 8004, targetPort: http, name: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dispatcher
+  namespace: support
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: dispatcher}
+---
+# Redis: cache only. Nothing here is durable, so an eviction policy is set and
+# persistence is off deliberately.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: support
+  labels: {app: redis}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
+          ports: [{containerPort: 6379, name: redis}]
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 1200Mi}
+          livenessProbe:
+            tcpSocket: {port: redis}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: support
+  labels: {app: redis}
+spec:
+  selector: {app: redis}
+  ports: [{port: 6379, targetPort: redis, name: redis}]
+---
+# Database migrations, run before the new image serves traffic. In a GitOps
+# setup this is a Helm pre-upgrade hook or an Argo CD PreSync hook.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: support
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/OWNER/support-ticket-receiver:latest
+          command: ["alembic", "-c", "database/alembic.ini", "upgrade", "head"]
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}

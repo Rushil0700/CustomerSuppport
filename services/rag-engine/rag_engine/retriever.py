@@ -28,6 +28,9 @@ log = get_logger(__name__)
 
 CACHE_NAMESPACE = "rag:search"
 
+# At most this many chunks from any single article in one result set.
+MAX_CHUNKS_PER_DOCUMENT = 2
+
 
 class Retriever:
     """Embeds a query, searches the vector store, and shapes the results.
@@ -70,18 +73,28 @@ class Retriever:
         embedding = await self.embedder.embed_query(request.query)
 
         where = self._build_filter(request.categories)
-        # Over-fetch so the score floor cannot leave us with fewer than top_k
-        # usable hits when the head of the list is weak.
-        raw_hits = await self.vector_store.query(embedding, top_k=top_k * 2, where=where)
+        # Over-fetch generously: the score floor and the per-document cap below
+        # both discard hits, and a thin result set is worse than a slow one.
+        raw_hits = await self.vector_store.query(embedding, top_k=top_k * 4, where=where)
 
         results: list[RetrievedDocument] = []
+        per_document: dict[str, int] = {}
         for hit in raw_hits:
             if hit.score < min_score:
                 continue
             meta = hit.metadata
+            doc_id = str(meta.get("doc_id", hit.id))
+
+            # Adjacent chunks of one article are near-duplicates. Capping them
+            # keeps the agent's context spread across distinct articles, which
+            # is what actually improves its answers.
+            if per_document.get(doc_id, 0) >= MAX_CHUNKS_PER_DOCUMENT:
+                continue
+            per_document[doc_id] = per_document.get(doc_id, 0) + 1
+
             results.append(
                 RetrievedDocument(
-                    doc_id=str(meta.get("doc_id", hit.id)),
+                    doc_id=doc_id,
                     title=str(meta.get("title", "Untitled")),
                     source=str(meta.get("source", "")),
                     category=str(meta.get("category", "general")),

@@ -1,0 +1,118 @@
+# Alert rules for the support automation platform.
+#
+# The thresholds encode the project's own targets: 65% auto-resolution,
+# two-minute resolution time, $0.08 per ticket, 99.5% uptime. Each alert says
+# what a responder should actually do, because an alert without an action is
+# just noise.
+
+groups:
+  - name: support-slos
+    interval: 30s
+    rules:
+      - alert: AutoResolutionRateBelowTarget
+        # Below half the 65% target for an hour means the agent has stopped
+        # being useful - usually an empty index or a missing model.
+        expr: |
+          sum(rate(support_tickets_resolved_total[1h]))
+          /
+          clamp_min(
+            sum(rate(support_tickets_resolved_total[1h]))
+            + sum(rate(support_tickets_escalated_total[1h])),
+            0.0001
+          ) < 0.35
+        for: 1h
+        labels: {severity: warning, team: support-platform}
+        annotations:
+          summary: "Auto-resolution rate is {{ $value | humanizePercentage }} (target 65%)"
+          description: >-
+            Check that the RAG index is populated (GET /api/stats on the rag-engine)
+            and that Ollama has the configured model. A recent knowledge base change
+            or a model swap is the usual cause.
+
+      - alert: ResolutionLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(support_ticket_resolution_seconds_bucket[15m])) by (le)
+          ) > 120
+        for: 15m
+        labels: {severity: warning, team: support-platform}
+        annotations:
+          summary: "p95 resolution time is {{ $value | humanizeDuration }} (target 120s)"
+          description: >-
+            Ollama is the usual bottleneck. Check GPU saturation and whether
+            OLLAMA_NUM_PARALLEL matches the agent's AGENT_MAX_CONCURRENCY.
+
+      - alert: CostPerTicketAboveTarget
+        expr: |
+          histogram_quantile(0.5, sum(rate(support_ticket_cost_usd_bucket[1h])) by (le)) > 0.08
+        for: 30m
+        labels: {severity: warning, team: support-platform}
+        annotations:
+          summary: "Median cost per ticket is ${{ $value }} (target $0.08)"
+          description: >-
+            Either inference is slower than planned or throughput dropped so the
+            fixed platform cost is spread over fewer tickets.
+
+      - alert: EscalationSpike
+        expr: |
+          sum(rate(support_tickets_escalated_total{reason="llm_error"}[10m])) > 0.1
+        for: 10m
+        labels: {severity: critical, team: support-platform}
+        annotations:
+          summary: "Tickets are escalating because the model is failing"
+          description: >-
+            Every such ticket reaches a human, so this is degradation, not an
+            outage - but check Ollama immediately.
+
+  - name: support-availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up{job="support-services"} == 0
+        for: 2m
+        labels: {severity: critical, team: support-platform}
+        annotations:
+          summary: "{{ $labels.service }} is not responding to scrapes"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(support_http_requests_total{status=~"5.."}[5m])) by (service)
+          /
+          clamp_min(sum(rate(support_http_requests_total[5m])) by (service), 0.0001)
+          > 0.05
+        for: 10m
+        labels: {severity: critical, team: support-platform}
+        annotations:
+          summary: "{{ $labels.service }} is returning {{ $value | humanizePercentage }} 5xx"
+
+      - alert: KnowledgeBaseEmpty
+        # The single most damaging silent failure: retrieval returns nothing and
+        # every ticket escalates.
+        expr: support_kb_documents < 100
+        for: 5m
+        labels: {severity: critical, team: support-platform}
+        annotations:
+          summary: "Vector index holds only {{ $value }} chunks"
+          description: "Run the seed job: python scripts/seed_kb.py --reset"
+
+      - alert: DispatchFailures
+        expr: |
+          sum(rate(support_dispatches_total{outcome="failed"}[15m])) by (channel) > 0.05
+        for: 15m
+        labels: {severity: warning, team: support-platform}
+        annotations:
+          summary: "Deliveries are failing on {{ $labels.channel }}"
+          description: >-
+            Answers are being generated but not reaching customers. Check the
+            channel credentials via GET /api/channels on the dispatcher.
+
+      - alert: SatisfactionDropping
+        expr: |
+          histogram_quantile(0.5, sum(rate(support_feedback_score_bucket[6h])) by (le)) < 3
+        for: 6h
+        labels: {severity: warning, team: support-platform}
+        annotations:
+          summary: "Median satisfaction is {{ $value }}/5"
+          description: >-
+            Automated answers are landing badly. Consider raising
+            AGENT_CONFIDENCE_THRESHOLD until the knowledge base is improved.

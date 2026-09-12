@@ -1,0 +1,164 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [staging, production]
+        default: staging
+
+concurrency:
+  # Never let two deploys race to the same cluster.
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/support
+
+jobs:
+  publish:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ticket-receiver, rag-engine, agent, dispatcher]
+    outputs:
+      sha: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          provenance: true
+          sbom: true
+
+      - name: Scan the image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          # Report rather than block: a base-image CVE with no fix available
+          # should not stop a deploy that fixes a customer-facing bug.
+          exit-code: "0"
+
+      - name: Upload the scan result
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    needs: publish
+    timeout-minutes: 30
+    environment:
+      # Production is gated on a GitHub environment approval rule.
+      name: ${{ github.event.inputs.environment || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure cloud credentials
+        # Swap for google-github-actions/auth or azure/login as appropriate.
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Fetch the kubeconfig
+        run: aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }}
+
+      - name: Pin the manifests to this commit
+        run: |
+          cd kubernetes/overlays/prod
+          for service in ticket-receiver rag-engine agent dispatcher; do
+            kustomize edit set image \
+              ghcr.io/OWNER/support-$service=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-$service:sha-${{ github.sha }}
+          done
+
+      - name: Run database migrations
+        run: |
+          kubectl -n support delete job db-migrate --ignore-not-found
+          kubectl kustomize kubernetes/overlays/prod \
+            | yq 'select(.kind == "Job")' \
+            | kubectl apply -f -
+          kubectl -n support wait --for=condition=complete job/db-migrate --timeout=5m
+
+      - name: Apply the manifests
+        run: kubectl apply -k kubernetes/overlays/prod
+
+      - name: Wait for the rollout
+        run: |
+          for workload in \
+            deployment/ticket-receiver deployment/agent deployment/dispatcher \
+            statefulset/rag-engine; do
+            echo "Waiting for $workload"
+            kubectl -n support rollout status "$workload" --timeout=10m
+          done
+
+      - name: Smoke-test the deployment
+        run: |
+          kubectl -n support run smoke-$RANDOM --rm -i --restart=Never \
+            --image=curlimages/curl:latest -- \
+            sh -c '
+              set -e
+              curl -fsS http://ticket-receiver:8001/health
+              curl -fsS http://rag-engine:8002/ready
+              curl -fsS http://agent:8003/health
+              curl -fsS http://dispatcher:8004/health
+              echo "all services responded"
+            '
+
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          echo "Deploy failed - rolling back" >&2
+          for workload in \
+            deployment/ticket-receiver deployment/agent deployment/dispatcher \
+            statefulset/rag-engine; do
+            kubectl -n support rollout undo "$workload" || true
+          done
+          exit 1

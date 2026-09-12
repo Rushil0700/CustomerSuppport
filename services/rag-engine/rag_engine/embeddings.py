@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from functools import lru_cache
 
 import httpx
 
@@ -63,7 +62,11 @@ class SentenceTransformerEmbedder(Embedder):
 
                 log.info("embeddings.loading_model", model=self.model_name)
                 model = await asyncio.to_thread(SentenceTransformer, self.model_name)
-                self.dimensions = int(model.get_sentence_embedding_dimension())
+                # Renamed in sentence-transformers 5; support both spellings.
+                get_dim = getattr(
+                    model, "get_embedding_dimension", None
+                ) or model.get_sentence_embedding_dimension
+                self.dimensions = int(get_dim())
                 self._model = model
                 log.info("embeddings.model_ready", dimensions=self.dimensions)
         return self._model
@@ -136,9 +139,11 @@ def _normalise(vector: list[float]) -> list[float]:
     return [x / magnitude for x in vector]
 
 
-@lru_cache(maxsize=1)
-def get_embedder(settings: Settings | None = None) -> Embedder:
-    """Return the configured embedder (one per process)."""
+_embedder: Embedder | None = None
+
+
+def build_embedder(settings: Settings | None = None) -> Embedder:
+    """Construct the configured embedder without caching it."""
     settings = settings or get_settings()
     if settings.embedding_provider == "ollama":
         return OllamaEmbedder(
@@ -149,3 +154,22 @@ def get_embedder(settings: Settings | None = None) -> Embedder:
     return SentenceTransformerEmbedder(
         settings.embedding_model, batch_size=settings.embedding_batch_size
     )
+
+
+def get_embedder(settings: Settings | None = None) -> Embedder:
+    """Return the process-wide embedder.
+
+    A module-level singleton rather than ``lru_cache``: the model weights are
+    ~90MB and loading them twice in one process is pure waste, and ``Settings``
+    is not hashable so it cannot be a cache key anyway.
+    """
+    global _embedder
+    if _embedder is None:
+        _embedder = build_embedder(settings)
+    return _embedder
+
+
+def reset_embedder() -> None:
+    """Drop the cached embedder. For tests that swap the provider."""
+    global _embedder
+    _embedder = None

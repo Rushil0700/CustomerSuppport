@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console"] = "json"
 
     # --- Database -----------------------------------------------------------
-    database_url: str = "postgresql+asyncpg://support:support@localhost:5432/support"
+    database_url: str = "postgresql+asyncpg://support:support@localhost:5433/support"
     db_pool_size: int = 10
     db_max_overflow: int = 20
 

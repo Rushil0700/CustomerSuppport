@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: support
+
+resources:
+  - namespace.yaml
+  - ticket-receiver.yaml
+  - rag-engine.yaml
+  - agent.yaml
+  - dispatcher.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: support-automation
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: ghcr.io/OWNER/support-ticket-receiver
+    newTag: latest
+  - name: ghcr.io/OWNER/support-rag-engine
+    newTag: latest
+  - name: ghcr.io/OWNER/support-agent
+    newTag: latest
+  - name: ghcr.io/OWNER/support-dispatcher
+    newTag: latest

@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: support
+
+resources:
+  - ../../base
+
+# CI rewrites these tags to the commit SHA it just built, so a deploy is
+# reproducible and rollback is a matter of re-applying an older tag.
+images:
+  - name: ghcr.io/OWNER/support-ticket-receiver
+    newTag: PLACEHOLDER_SHA
+  - name: ghcr.io/OWNER/support-rag-engine
+    newTag: PLACEHOLDER_SHA
+  - name: ghcr.io/OWNER/support-agent
+    newTag: PLACEHOLDER_SHA
+  - name: ghcr.io/OWNER/support-dispatcher
+    newTag: PLACEHOLDER_SHA
+
+patches:
+  # Production runs a larger model and a stricter confidence gate: a wrong
+  # automated answer costs more than an escalation does.
+  - target: {kind: ConfigMap, name: support-config}
+    patch: |-
+      - op: replace
+        path: /data/OLLAMA_MODEL
+        value: "mistral:7b"
+      - op: replace
+        path: /data/AGENT_CONFIDENCE_THRESHOLD
+        value: "0.75"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "INFO"
+
+  - target: {kind: Deployment, name: ticket-receiver}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 5
+
+  - target: {kind: Deployment, name: agent}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 8
+
+  - target: {kind: StatefulSet, name: ollama}
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 4

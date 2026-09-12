@@ -1,0 +1,250 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A new push supersedes an in-flight run on the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pydantic types-requests
+          pip install -e libs/support_common
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+      - name: mypy
+        run: mypy libs/support_common/support_common services scripts
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: support
+          POSTGRES_PASSWORD: support
+          POSTGRES_DB: support
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U support"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # The service container is reachable on 5432 here; only local development
+      # uses 5433 to dodge a host Postgres.
+      TEST_DATABASE_URL: postgresql+asyncpg://support:support@localhost:5432/support
+      DATABASE_URL: postgresql+asyncpg://support:support@localhost:5432/support
+      REDIS_URL: redis://localhost:6379/0
+      ENVIRONMENT: ci
+      LOG_LEVEL: WARNING
+      API_KEY: test-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Cache the sentence-transformers model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ runner.os }}-all-MiniLM-L6-v2
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # CPU-only torch keeps the install to ~200MB instead of ~2.5GB.
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -r requirements.txt
+          pip install -e libs/support_common
+
+      - name: Generate the knowledge base
+        run: python scripts/generate_kb.py
+
+      - name: Apply migrations
+        run: alembic -c database/alembic.ini upgrade head
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov --cov-report=xml --cov-report=term-missing \
+                 --junitxml=junit.xml -q
+
+      - name: Enforce the coverage floor
+        run: |
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          rate = float(ET.parse("coverage.xml").getroot().get("line-rate", 0)) * 100
+          print(f"Line coverage: {rate:.2f}%")
+          if rate < 80:
+              print("FAIL: coverage is below the 80% floor", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.xml
+            junit.xml
+          retention-days: 14
+
+  knowledge-base:
+    name: Knowledge base checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify the corpus is regenerable and meets the size target
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e libs/support_common
+          python scripts/generate_kb.py
+          count=$(find support-kb -name '*.md' ! -name 'README.md' | wc -l)
+          echo "Knowledge base holds $count documents"
+          if [ "$count" -lt 500 ]; then
+            echo "FAIL: fewer than the 500 document target" >&2
+            exit 1
+          fi
+
+      - name: Fail if the generated corpus differs from what is committed
+        run: |
+          if ! git diff --quiet -- support-kb; then
+            echo "support-kb is out of date - run scripts/generate_kb.py and commit" >&2
+            git diff --stat -- support-kb
+            exit 1
+          fi
+
+  schema:
+    name: Schema is in sync with the models
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Regenerate and diff
+        run: |
+          python -m pip install --upgrade pip
+          pip install "sqlalchemy[asyncio]>=2.0.36,<2.1" "psycopg2-binary"
+          pip install -e libs/support_common
+          python scripts/export_schema.py
+          if ! git diff --quiet -- database/schema.sql; then
+            echo "database/schema.sql is stale - run scripts/export_schema.py" >&2
+            git diff -- database/schema.sql
+            exit 1
+          fi
+
+  build:
+    name: Build images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ticket-receiver, rag-engine, agent, dispatcher]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (no push on pull requests)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          push: false
+          load: true
+          tags: support/${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Smoke-test the image
+        run: |
+          # The container must at least import its app and answer /health.
+          docker run -d --name smoke -p 8080:${{ matrix.service == 'ticket-receiver' && '8001' || matrix.service == 'rag-engine' && '8002' || matrix.service == 'agent' && '8003' || '8004' }} \
+            -e DATABASE_URL=postgresql+asyncpg://u:p@localhost:5432/db \
+            support/${{ matrix.service }}:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+              echo "${{ matrix.service }} is healthy"
+              docker rm -f smoke
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "${{ matrix.service }} never became healthy" >&2
+          docker logs smoke
+          docker rm -f smoke
+          exit 1
+
+  manifests:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: kustomize build
+        run: |
+          kubectl kustomize kubernetes/base > /tmp/base.yaml
+          kubectl kustomize kubernetes/overlays/prod > /tmp/prod.yaml
+          echo "Rendered $(grep -c '^kind:' /tmp/prod.yaml) objects"
+
+      - name: Validate against the Kubernetes schemas
+        uses: yannh/kubeconform-action@v1
+        with:
+          files: /tmp/prod.yaml
+          args: -strict -summary -ignore-missing-schemas

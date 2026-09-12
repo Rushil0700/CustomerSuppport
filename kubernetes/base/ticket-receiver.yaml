@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-receiver
+  namespace: support
+  labels: {app: ticket-receiver, app.kubernetes.io/part-of: support-automation}
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app: ticket-receiver}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {app: ticket-receiver}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      # Spread replicas across nodes so losing one node cannot take the whole
+      # front door down.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: ticket-receiver}
+      containers:
+        - name: ticket-receiver
+          image: ghcr.io/OWNER/support-ticket-receiver:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8001, name: http}]
+          envFrom:
+            - configMapRef: {name: support-config}
+            - secretRef: {name: support-secrets}
+          resources:
+            requests: {cpu: 100m, memory: 192Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          # Gives a slow-starting pod time without loosening the liveness probe.
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 24
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticket-receiver
+  namespace: support
+  labels: {app: ticket-receiver}
+spec:
+  selector: {app: ticket-receiver}
+  ports: [{port: 8001, targetPort: http, name: http}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ticket-receiver
+  namespace: support
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: ticket-receiver}
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+  behavior:
+    scaleDown:
+      # Ticket volume is spiky; a slow scale-down avoids thrashing after a burst.
+      stabilizationWindowSeconds: 300
+      policies: [{type: Percent, value: 50, periodSeconds: 60}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ticket-receiver
+  namespace: support
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: {app: ticket-receiver}

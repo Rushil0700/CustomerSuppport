@@ -1,0 +1,29 @@
+# Prometheus configuration for the local docker-compose stack.
+# In Kubernetes the prometheus.io/* pod annotations drive discovery instead.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: local
+    project: support-automation
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: support-services
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ticket-receiver:8001"]
+        labels: {service: ticket-receiver}
+      - targets: ["rag-engine:8002"]
+        labels: {service: rag-engine}
+      - targets: ["agent:8003"]
+        labels: {service: agent}
+      - targets: ["dispatcher:8004"]
+        labels: {service: dispatcher}
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

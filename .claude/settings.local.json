@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec *)",
+      "Bash(.venv/bin/python scripts/export_schema.py)",
+      "Bash(docker compose *)",
+      "Bash(.venv/bin/python scripts/seed_kb.py --reset --check \"I forgot my password and cannot log in\")",
+      "Bash(.venv/bin/python -)",
+      "Bash(.venv/bin/python -m pytest tests/unit -q)",
+      "Bash(.venv/bin/python -m pytest tests/integration/test_repository.py -q)",
+      "Bash(.venv/bin/python -m pytest tests/integration/test_receiver_api.py -q)"
+    ]
+  }
+}

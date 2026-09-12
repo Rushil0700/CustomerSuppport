@@ -44,6 +44,11 @@ HEDGE_RE = re.compile(
 # An answer that asks a question cannot resolve a ticket - there is no follow-up.
 QUESTION_RE = re.compile(r"\?\s*$|\?\s*\n")
 
+# A citation at or above this score counts as genuine supporting evidence.
+STRONG_MATCH_SCORE = 0.40
+# Below this the retrieval is too weak to answer from at all.
+NOISE_SCORE = 0.28
+
 
 @dataclass
 class ConfidenceBreakdown:
@@ -93,11 +98,15 @@ def score_confidence(
     penalties: list[str] = []
 
     top_score = max((c.score for c in citations), default=0.0)
-    # A cosine score of 0.75+ against this corpus is a strong, on-topic match;
-    # map [0.3, 0.8] onto [0, 1] so ordinary matches are not over-rewarded.
-    retrieval_score = _rescale(top_score, low=0.30, high=0.80)
+    # Calibrated against the real corpus with all-MiniLM-L6-v2: an on-topic
+    # question scores 0.55-0.85 against its own article, and anything under
+    # ~0.25 is noise. Mapping [0.25, 0.65] onto [0, 1] puts a genuine match near
+    # the top of the range; the earlier [0.30, 0.80] scale was tuned for
+    # similarity numbers this embedding model does not actually produce, and it
+    # escalated tickets the knowledge base answered perfectly well.
+    retrieval_score = _rescale(top_score, low=0.25, high=0.65)
 
-    strong = [c for c in citations if c.score >= 0.45]
+    strong = [c for c in citations if c.score >= STRONG_MATCH_SCORE]
     citation_score = min(1.0, len(strong) / 3.0)
 
     grounding_score = _grounding(answer, citations)
@@ -115,7 +124,7 @@ def score_confidence(
     if not citations:
         final *= 0.30
         penalties.append("no_citations")
-    if top_score < 0.30:
+    if top_score < NOISE_SCORE:
         final *= 0.55
         penalties.append("weak_retrieval")
     if HEDGE_RE.search(answer):

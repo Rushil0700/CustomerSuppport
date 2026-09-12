@@ -25,6 +25,10 @@ from support_common.schemas import Citation, DispatchRequest, SearchRequest, Sea
 
 log = get_logger(__name__)
 
+# Below this cosine score a result set is not good enough to answer from, which
+# is the trigger for retrying a category-filtered search without the filter.
+WEAK_MATCH_SCORE = 0.45
+
 
 @dataclass
 class Decision:
@@ -87,7 +91,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                     "category": {
                         "type": "string",
-                        "description": "Optional category filter.",
+                        "description": (
+                            "Optional category filter. Leave it out unless you are certain - "
+                            "guessing wrongly hides the article that answers the question."
+                        ),
                         "enum": [
                             "account",
                             "billing",
@@ -289,14 +296,35 @@ class ToolRegistry:
             )
 
         category = arguments.get("category")
+        top_k = int(arguments.get("top_k") or self.settings.rag_top_k)
         request = SearchRequest(
             query=query[:4000],
-            top_k=int(arguments.get("top_k") or self.settings.rag_top_k),
+            top_k=top_k,
             categories=[category] if isinstance(category, str) and category else [],
             ticket_id=context.ticket_id,
         )
         payload = await self.rag.post_json("/api/search", request.model_dump(mode="json"))
         response = SearchResponse.model_validate(payload)
+
+        # The category is the model's guess, and a wrong guess hides the right
+        # article completely - a password question filtered to "troubleshooting"
+        # never sees the "account" article that answers it. So treat the filter
+        # as advisory: if it produced nothing convincing, search again without it.
+        if request.categories and response.top_score < WEAK_MATCH_SCORE:
+            unfiltered = SearchRequest(
+                query=request.query, top_k=top_k, ticket_id=context.ticket_id
+            )
+            retry = SearchResponse.model_validate(
+                await self.rag.post_json("/api/search", unfiltered.model_dump(mode="json"))
+            )
+            if retry.top_score > response.top_score:
+                log.info(
+                    "tool.category_filter_dropped",
+                    category=category,
+                    filtered_score=round(response.top_score, 3),
+                    unfiltered_score=round(retry.top_score, 3),
+                )
+                response = retry
 
         context.searches += 1
         context.best_score = max(context.best_score, response.top_score)

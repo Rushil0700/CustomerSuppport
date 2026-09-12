@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: support
+  labels:
+    app.kubernetes.io/part-of: support-automation
+---
+# Config shared by every service. Secrets (database password, Slack token, API
+# key) live in the Secret below and are never placed here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: support-config
+  namespace: support
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+
+  REDIS_URL: "redis://redis:6379/0"
+  CACHE_TTL_SECONDS: "3600"
+
+  TICKET_RECEIVER_URL: "http://ticket-receiver:8001"
+  RAG_ENGINE_URL: "http://rag-engine:8002"
+  AGENT_URL: "http://agent:8003"
+  DISPATCHER_URL: "http://dispatcher:8004"
+  HTTP_TIMEOUT_SECONDS: "30"
+  HTTP_MAX_RETRIES: "3"
+
+  OLLAMA_HOST: "http://ollama:11434"
+  OLLAMA_MODEL: "mistral:7b"
+  OLLAMA_KEEP_ALIVE: "60m"
+  OLLAMA_NUM_CTX: "8192"
+  OLLAMA_TIMEOUT_SECONDS: "120"
+
+  EMBEDDING_PROVIDER: "sentence_transformers"
+  EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+  VECTOR_BACKEND: "chroma"
+  CHROMA_PERSIST_DIR: "/data/chroma"
+  CHROMA_COLLECTION: "support_kb"
+  KB_DIR: "/app/support-kb"
+  RAG_TOP_K: "5"
+  RAG_MIN_SCORE: "0.25"
+
+  AGENT_MAX_TURNS: "5"
+  AGENT_CONFIDENCE_THRESHOLD: "0.70"
+  AGENT_MAX_CONCURRENCY: "8"
+
+  DISPATCH_DRY_RUN: "false"
+  SLACK_DEFAULT_CHANNEL: "#support"
+  SMTP_HOST: "smtp.internal"
+  SMTP_PORT: "587"
+  SMTP_USE_TLS: "true"
+  SMTP_FROM_EMAIL: "support@acme.example"
+  SMTP_FROM_NAME: "Acme Support"
+
+  METRICS_ENABLED: "true"
+---
+# Placeholder only. In a real cluster these values come from External Secrets,
+# Sealed Secrets or the cloud provider's secret manager - never from git.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: support-secrets
+  namespace: support
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql+asyncpg://support:CHANGE_ME@postgres:5432/support"
+  API_KEY: "CHANGE_ME"
+  SLACK_BOT_TOKEN: ""
+  SLACK_SIGNING_SECRET: ""
+  ZENDESK_WEBHOOK_SECRET: ""
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""

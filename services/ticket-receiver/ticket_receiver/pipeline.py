@@ -7,6 +7,7 @@ be held for the seconds a local model takes to think.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import UTC, datetime
 
@@ -49,6 +50,18 @@ class TicketPipeline:
         self.dispatcher = dispatcher_client or ServiceClient(
             self.settings.dispatcher_url, "dispatcher"
         )
+        # FastAPI's BackgroundTasks run in this same process, sharing its event
+        # loop and its one Postgres connection pool with every foreground
+        # request. A burst of ticket submissions used to schedule one
+        # process() coroutine per ticket with nothing bounding how many ran at
+        # once - under load, hundreds of concurrent background runs starved
+        # the pool of connections that foreground POST /api/tickets requests
+        # also needed, so ingest latency degraded even though ingest itself
+        # does none of the slow work. Capping concurrency here means excess
+        # tickets simply wait their turn on this semaphore (holding no
+        # connection while they do) instead of everyone grabbing a connection
+        # at once and congesting the pool.
+        self._semaphore = asyncio.Semaphore(self.settings.pipeline_max_concurrency)
 
     async def aclose(self) -> None:
         await self.agent.aclose()
@@ -60,6 +73,10 @@ class TicketPipeline:
         Returns the agent's decision, or ``None`` if the ticket could not be
         processed - in which case it is left in ``FAILED`` for the retry sweep.
         """
+        async with self._semaphore:
+            return await self._process_locked(ticket_id)
+
+    async def _process_locked(self, ticket_id: str) -> AgentResult | None:
         bind_ticket_id(ticket_id)
         started = time.perf_counter()
 

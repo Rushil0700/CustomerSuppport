@@ -10,10 +10,16 @@ Two workloads, selected by tag:
     locust -f tests/load/locustfile.py --host http://localhost:8002 \
            --tags search --users 200 --spawn-rate 20 --run-time 5m
 
-Ingest returns as soon as the ticket is committed, so it measures the receiver
-and Postgres rather than the model. End-to-end resolution throughput is bounded
-by Ollama, which is measured separately by scripts/evaluate.py - loading it with
-Locust would only ever show the GPU saturating.
+Ingest *returns* as soon as the ticket is committed, but do not read that as
+"this test never touches the model": the receiver processes each ticket in a
+FastAPI BackgroundTasks coroutine in the same process, sharing its event loop
+and its one Postgres connection pool with every foreground request. Under
+sustained load those background runs compete for the same connections
+`POST /api/tickets` itself needs, so ingest latency is bounded by
+PIPELINE_MAX_CONCURRENCY and the pool size, not just by how fast a row can be
+written. End-to-end resolution throughput is bounded by Ollama, which is
+measured separately by scripts/evaluate.py - loading it with Locust would only
+ever show the GPU saturating.
 
 Headless with a pass/fail gate for CI:
 
@@ -196,6 +202,37 @@ class SearchUser(HttpUser):
             json={"query": f"{random.choice(QUERIES)} {uuid.uuid4().hex[:6]}", "top_k": 5},
             name="POST /api/search (uncached)",
         )
+
+
+@events.init.add_listener
+def _disable_user_classes_unrelated_to_the_requested_tags(
+    environment: Environment, **_: object
+) -> None:
+    """Zero the spawn weight of a User class whose tasks are unrelated to the
+    tags this run requested.
+
+    Locust's ``--tags`` filters individual tasks, not User classes: a class
+    with three tasks tagged "search" and none tagged "ingest" still gets
+    spawned in an ``--tags ingest`` run, immediately raises "no tasks defined"
+    for every instance, and burns a share of --users on workers that never do
+    anything - undercounting the throughput a clean run would show. This file
+    mixes User classes meant for different target hosts (ticket-receiver vs.
+    rag-engine) in one file for convenience, so that exclusion has to be done
+    here rather than relying on Locust to infer it from --host.
+    """
+    tags = set(getattr(environment.parsed_options, "tags", None) or [])
+    exclude_tags = set(getattr(environment.parsed_options, "exclude_tags", None) or [])
+    if not tags and not exclude_tags:
+        return
+
+    for user_class in (TicketIngestUser, SlackWebhookUser, SearchUser):
+        task_tags: set[str] = set()
+        for candidate in user_class.tasks:
+            task_tags |= getattr(candidate, "locust_tag_set", set())
+        eligible = (not tags or task_tags & tags) and not (task_tags & exclude_tags)
+        if not eligible:
+            user_class.weight = 0
+            user_class.fixed_count = 0
 
 
 @events.quitting.add_listener

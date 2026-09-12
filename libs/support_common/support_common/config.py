@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 30.0
     http_max_retries: int = 3
 
+    # --- Ticket receiver ------------------------------------------------------
+    # Caps concurrent background pipeline.process() runs so a burst of ingest
+    # traffic cannot starve the shared Postgres pool that foreground requests
+    # also draw from. Excess tickets simply wait their turn on a semaphore
+    # rather than every one of them grabbing a connection at once.
+    pipeline_max_concurrency: int = 10
+
     # --- Agent --------------------------------------------------------------
     agent_max_turns: int = 5
     agent_confidence_threshold: float = 0.70

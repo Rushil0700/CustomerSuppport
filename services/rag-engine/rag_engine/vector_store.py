@@ -99,7 +99,9 @@ class ChromaVectorStore(VectorStore):
             metadata={"hnsw:space": "cosine"},
         )
 
-    async def _get_collection(self) -> Any:
+    async def _get_collection(self, *, force_reconnect: bool = False) -> Any:
+        if force_reconnect:
+            self._collection = None
         if self._collection is not None:
             return self._collection
         async with self._lock:
@@ -113,12 +115,36 @@ class ChromaVectorStore(VectorStore):
                 )
         return self._collection
 
+    async def _run_with_stale_handle_retry(self, operation: Any) -> Any:
+        """Run a blocking Chroma call, transparently reconnecting once if the
+        cached collection handle has gone stale.
+
+        The handle goes stale when *anything else* - a separate CLI re-index
+        process, or another instance of this class in the same process -
+        deletes and recreates the collection: Chroma assigns a new internal id
+        on recreation, so a cached handle from before the reset points at an id
+        that no longer exists. This is exactly what happens when an operator
+        runs ``scripts/seed_kb.py --reset`` (or ``POST /api/index/rebuild``)
+        against a knowledge base that a running service is already serving
+        search traffic from - a legitimate, documented operation, not a misuse
+        case, so every call here defends against it rather than requiring the
+        service to be restarted afterwards.
+        """
+        from chromadb.errors import NotFoundError
+
+        collection = await self._get_collection()
+        try:
+            return await asyncio.to_thread(operation, collection)
+        except NotFoundError:
+            log.warning("vectorstore.stale_handle_reconnecting", collection=self.collection_name)
+            collection = await self._get_collection(force_reconnect=True)
+            return await asyncio.to_thread(operation, collection)
+
     async def upsert(self, records: list[VectorRecord]) -> int:
         if not records:
             return 0
-        collection = await self._get_collection()
 
-        def _write() -> None:
+        def _write(collection: Any) -> None:
             collection.upsert(
                 ids=[r.id for r in records],
                 embeddings=[r.embedding for r in records],
@@ -128,7 +154,7 @@ class ChromaVectorStore(VectorStore):
                 metadatas=[_flatten_metadata(r.metadata) or {"_empty": True} for r in records],
             )
 
-        await asyncio.to_thread(_write)
+        await self._run_with_stale_handle_retry(_write)
         return len(records)
 
     async def query(
@@ -138,9 +164,7 @@ class ChromaVectorStore(VectorStore):
         *,
         where: dict[str, Any] | None = None,
     ) -> list[VectorHit]:
-        collection = await self._get_collection()
-
-        def _search() -> dict[str, Any]:
+        def _search(collection: Any) -> dict[str, Any]:
             return collection.query(
                 query_embeddings=[embedding],
                 n_results=top_k,
@@ -148,7 +172,7 @@ class ChromaVectorStore(VectorStore):
                 include=["documents", "metadatas", "distances"],
             )
 
-        raw = await asyncio.to_thread(_search)
+        raw = await self._run_with_stale_handle_retry(_search)
         ids = (raw.get("ids") or [[]])[0]
         documents = (raw.get("documents") or [[]])[0]
         metadatas = (raw.get("metadatas") or [[]])[0]
@@ -169,8 +193,7 @@ class ChromaVectorStore(VectorStore):
         return hits
 
     async def count(self) -> int:
-        collection = await self._get_collection()
-        return int(await asyncio.to_thread(collection.count))
+        return int(await self._run_with_stale_handle_retry(lambda collection: collection.count()))
 
     async def reset(self) -> None:
         await self._get_collection()  # guarantees self._client is connected

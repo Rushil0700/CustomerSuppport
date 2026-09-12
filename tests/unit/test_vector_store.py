@@ -122,6 +122,35 @@ class TestReset:
         await fresh.reset()
         assert await fresh.count() == 0
 
+    async def test_a_reset_by_a_second_instance_does_not_break_the_first(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression test for a real production bug: `/api/index/rebuild`
+        (and a separate `seed_kb.py --reset` process) resets the collection
+        through its own ChromaVectorStore instance. Deleting and recreating a
+        collection gives it a new internal id, which used to leave any other
+        instance's cached handle - like the one the live /api/search path
+        reads from - pointing at an id Chroma no longer has, breaking every
+        search until the process restarted.
+        """
+        path = str(tmp_path / "shared")
+        serving = ChromaVectorStore(path, "col")
+        await serving.upsert(
+            [VectorRecord(id="a", text="original", embedding=vec(1, 0), metadata={})]
+        )
+        await serving.query(vec(1, 0), top_k=1)  # cache a live collection handle
+
+        reindexer = ChromaVectorStore(path, "col")  # a separate connection, as build_index() opens
+        await reindexer.reset()
+        await reindexer.upsert(
+            [VectorRecord(id="b", text="rebuilt", embedding=vec(1, 0), metadata={})]
+        )
+
+        # The first instance's stale handle must recover rather than raising.
+        hits = await serving.query(vec(1, 0), top_k=5)
+        assert [h.text for h in hits] == ["rebuilt"]
+        assert await serving.count() == 1
+
 
 class TestConcurrency:
     async def test_concurrent_first_access_connects_only_once(

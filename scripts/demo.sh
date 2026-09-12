@@ -68,7 +68,13 @@ for _ in $(seq 1 60); do
 done
 echo
 
-curl -fsS "$RECEIVER/api/tickets/$TICKET_ID/messages" | python3 - "$status" <<'PY'
+# A temp file for the renderer, not a heredoc: `python3 - <<HEREDOC` would
+# consume the heredoc as python3's own script (satisfying the `-` stdin-script
+# argument) and leave nothing on stdin for json.load() to read the piped curl
+# output from - the two redirections can't share one stdin.
+render_script="$(mktemp)"
+trap 'rm -f "$render_script"' EXIT
+cat > "$render_script" <<'PY'
 import json, sys, textwrap
 
 status = sys.argv[1]
@@ -92,6 +98,7 @@ for message in messages:
         print(f"\n  \033[2mSources: {', '.join(meta['citations'][:3])}\033[0m")
     print()
 PY
+curl -fsS "$RECEIVER/api/tickets/$TICKET_ID/messages" | python3 "$render_script" "$status"
 
 echo "Full ticket:  curl -s $RECEIVER/api/tickets/$TICKET_ID | python3 -m json.tool"
 echo "Stats:        curl -s $RECEIVER/api/stats | python3 -m json.tool"

@@ -94,13 +94,21 @@ async def stats(retriever: Retriever = Depends(get_retriever)) -> IndexStats:
 )
 async def rebuild_index(
     reset: bool = Query(default=False, description="Drop the collection before indexing"),
+    retriever: Retriever = Depends(get_retriever),
 ) -> dict[str, float | int | bool]:
     """Re-read ``support-kb/`` and refresh the vector index.
 
     Synchronous on purpose: a full rebuild of a few thousand chunks takes well
     under a minute locally, and an operator running it wants the count back.
+
+    Reuses this process's own vector store and embedder rather than opening a
+    second connection to the same on-disk collection - the vector store's own
+    retry logic still protects against a *separate* process resetting the
+    index concurrently, but there is no reason to open a redundant handle here.
     """
-    report = await build_index(reset=reset)
+    report = await build_index(
+        reset=reset, vector_store=retriever.vector_store, embedder=retriever.embedder
+    )
     return report.as_dict()
 
 

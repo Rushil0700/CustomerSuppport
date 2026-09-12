@@ -9,6 +9,11 @@ description = "Shared config, models, schemas and utilities for the support auto
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9,<3",
+    # schemas.py declares EmailStr fields (CustomerRef.email); pydantic builds
+    # every model's core schema at class-definition time, so importing this
+    # package at all requires the validator to be installed, not just code
+    # paths that happen to touch an email field.
+    "email-validator>=2.2,<3",
     "pydantic-settings>=2.6,<3",
     "sqlalchemy[asyncio]>=2.0.36,<2.1",
     "structlog>=24.4,<26",

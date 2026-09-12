@@ -16,7 +16,6 @@ import asyncio
 from abc import ABC, abstractmethod
 
 import httpx
-
 from support_common.config import Settings, get_settings
 from support_common.errors import UpstreamUnavailable
 from support_common.logging import get_logger
@@ -63,9 +62,10 @@ class SentenceTransformerEmbedder(Embedder):
                 log.info("embeddings.loading_model", model=self.model_name)
                 model = await asyncio.to_thread(SentenceTransformer, self.model_name)
                 # Renamed in sentence-transformers 5; support both spellings.
-                get_dim = getattr(
-                    model, "get_embedding_dimension", None
-                ) or model.get_sentence_embedding_dimension
+                get_dim = (
+                    getattr(model, "get_embedding_dimension", None)
+                    or model.get_sentence_embedding_dimension
+                )
                 self.dimensions = int(get_dim())
                 self._model = model
                 log.info("embeddings.model_ready", dimensions=self.dimensions)

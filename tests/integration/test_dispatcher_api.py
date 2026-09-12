@@ -6,17 +6,15 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from dispatcher import main as dispatcher_main
+from dispatcher.channels import DeliveryChannel, LogChannel
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
-
 from support_common.enums import Channel, TicketStatus
 from support_common.errors import DispatchFailed
 from support_common.models import Ticket, TicketFeedback, TicketMessage
 from support_common.schemas import DispatchRequest, DispatchResult
-
-from dispatcher import main as dispatcher_main
-from dispatcher.channels import DeliveryChannel, LogChannel
 
 pytestmark = pytest.mark.integration
 
@@ -149,9 +147,7 @@ class TestDispatch:
     async def test_an_escalation_is_attributed_to_the_system(
         self, client: AsyncClient, app_engine: AsyncEngine, seeded_ticket: str
     ) -> None:
-        await client.post(
-            "/api/dispatch", json=dispatch_body(seeded_ticket, escalated=True)
-        )
+        await client.post("/api/dispatch", json=dispatch_body(seeded_ticket, escalated=True))
         from support_common.enums import MessageSender
 
         messages = await rows(app_engine, TicketMessage)
@@ -212,9 +208,7 @@ class TestFeedback:
         tickets = await rows(app_engine, Ticket)
         assert tickets[0].status is TicketStatus.RESOLVED
 
-    async def test_feedback_for_an_unknown_ticket_is_a_404(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_feedback_for_an_unknown_ticket_is_a_404(self, client: AsyncClient) -> None:
         response = await client.post(
             "/api/feedback", json={"ticket_id": "TKT-DOESNOTEXIST", "satisfaction_score": 3}
         )

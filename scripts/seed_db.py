@@ -27,30 +27,65 @@ from support_common.enums import Channel, TicketPriority  # noqa: E402
 from support_common.logging import configure_logging  # noqa: E402
 from support_common.models import Base  # noqa: E402
 from support_common.schemas import CustomerRef, TicketCreate  # noqa: E402
-
 from ticket_receiver.repository import TicketRepository  # noqa: E402
 
 # (subject, body, channel, priority) - the first six should be auto-resolvable
 # from the knowledge base, the last three must escalate.
 SAMPLE_TICKETS: list[tuple[str, str, Channel, TicketPriority]] = [
-    ("Can't log in", "I forgot my password and the reset email never arrives. I've checked spam.",
-     Channel.EMAIL, TicketPriority.NORMAL),
-    ("Files stuck syncing", "Three files have been showing the syncing spinner for two hours. Everything else works.",
-     Channel.SLACK, TicketPriority.HIGH),
-    ("How do I add teammates?", "We just signed up on the Team plan. How do I invite the rest of my team?",
-     Channel.WEB, TicketPriority.LOW),
-    ("Getting 429 from the API", "Our integration started returning 429 rate_limited this morning. What are the limits?",
-     Channel.API, TicketPriority.HIGH),
-    ("Invoice for accounting", "Finance needs a PDF invoice for last month. Where do I download it?",
-     Channel.EMAIL, TicketPriority.LOW),
-    ("Slack integration stopped", "Our Slack integration shows 'Needs attention' and no messages are coming through.",
-     Channel.SLACK, TicketPriority.NORMAL),
-    ("Refund for annual plan", "We paid for a year in March and want a full refund now. Please process it today.",
-     Channel.EMAIL, TicketPriority.URGENT),
-    ("Lost my 2FA device", "My phone was stolen and I don't have my recovery codes. I need access immediately.",
-     Channel.EMAIL, TicketPriority.URGENT),
-    ("I think we've been hacked", "There are share links in our workspace nobody recognises. Please help urgently.",
-     Channel.SLACK, TicketPriority.URGENT),
+    (
+        "Can't log in",
+        "I forgot my password and the reset email never arrives. I've checked spam.",
+        Channel.EMAIL,
+        TicketPriority.NORMAL,
+    ),
+    (
+        "Files stuck syncing",
+        "Three files have been showing the syncing spinner for two hours. Everything else works.",
+        Channel.SLACK,
+        TicketPriority.HIGH,
+    ),
+    (
+        "How do I add teammates?",
+        "We just signed up on the Team plan. How do I invite the rest of my team?",
+        Channel.WEB,
+        TicketPriority.LOW,
+    ),
+    (
+        "Getting 429 from the API",
+        "Our integration started returning 429 rate_limited this morning. What are the limits?",
+        Channel.API,
+        TicketPriority.HIGH,
+    ),
+    (
+        "Invoice for accounting",
+        "Finance needs a PDF invoice for last month. Where do I download it?",
+        Channel.EMAIL,
+        TicketPriority.LOW,
+    ),
+    (
+        "Slack integration stopped",
+        "Our Slack integration shows 'Needs attention' and no messages are coming through.",
+        Channel.SLACK,
+        TicketPriority.NORMAL,
+    ),
+    (
+        "Refund for annual plan",
+        "We paid for a year in March and want a full refund now. Please process it today.",
+        Channel.EMAIL,
+        TicketPriority.URGENT,
+    ),
+    (
+        "Lost my 2FA device",
+        "My phone was stolen and I don't have my recovery codes. I need access immediately.",
+        Channel.EMAIL,
+        TicketPriority.URGENT,
+    ),
+    (
+        "I think we've been hacked",
+        "There are share links in our workspace nobody recognises. Please help urgently.",
+        Channel.SLACK,
+        TicketPriority.URGENT,
+    ),
 ]
 
 FIRST_NAMES = ["Alex", "Sam", "Priya", "Jordan", "Mei", "Tomas", "Aisha", "Noah", "Lena", "Kofi"]

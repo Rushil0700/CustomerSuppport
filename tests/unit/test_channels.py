@@ -3,12 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
-from support_common.config import Settings
-from support_common.enums import Channel
-from support_common.errors import DispatchFailed
-from support_common.schemas import Citation, DispatchRequest
-
 from dispatcher.channels import (
     EmailChannel,
     LogChannel,
@@ -20,6 +14,10 @@ from dispatcher.channels import (
     _split_slack_ref,
     build_channels,
 )
+from support_common.config import Settings
+from support_common.enums import Channel
+from support_common.errors import DispatchFailed
+from support_common.schemas import Citation, DispatchRequest
 
 
 @pytest.fixture
@@ -77,9 +75,7 @@ class TestEmailFormatting:
         assert "Reset a forgotten password" in body
         assert "TKT-ABCDEF123456" in body
 
-    def test_an_escalation_adds_the_handover_notice(
-        self, request_payload: DispatchRequest
-    ) -> None:
+    def test_an_escalation_adds_the_handover_notice(self, request_payload: DispatchRequest) -> None:
         request_payload.escalated = True
         assert "support team has been notified" in _plain_text(request_payload)
 

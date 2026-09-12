@@ -220,9 +220,7 @@ def _slack_blocks(request: DispatchRequest) -> list[dict[str, Any]]:
     ]
     context = _citation_line(request.citations)
     if context:
-        blocks.append(
-            {"type": "context", "elements": [{"type": "mrkdwn", "text": context}]}
-        )
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": context}]})
     blocks.append(
         {
             "type": "context",

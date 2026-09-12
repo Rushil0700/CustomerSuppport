@@ -33,9 +33,7 @@ def current_request_id() -> str | None:
     return _request_id.get()
 
 
-def _inject_context(
-    _logger: Any, _method: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+def _inject_context(_logger: Any, _method: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """structlog processor copying the context vars onto every event."""
     if (request_id := _request_id.get()) is not None:
         event_dict.setdefault("request_id", request_id)
@@ -44,9 +42,7 @@ def _inject_context(
     return event_dict
 
 
-def configure_logging(
-    service: str, level: str = "INFO", fmt: str = "json"
-) -> None:
+def configure_logging(service: str, level: str = "INFO", fmt: str = "json") -> None:
     """Configure structlog and the stdlib root logger for a service.
 
     Safe to call more than once; only the first call takes effect so that test
@@ -78,9 +74,7 @@ def configure_logging(
         cache_logger_on_first_use=True,
     )
 
-    logging.basicConfig(
-        format="%(message)s", stream=sys.stdout, level=level.upper(), force=True
-    )
+    logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper(), force=True)
     # uvicorn's access log duplicates our own request middleware line.
     logging.getLogger("uvicorn.access").disabled = True
     for noisy in ("httpx", "httpcore", "chromadb", "sentence_transformers"):

@@ -5,13 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
+from agent_service.tools import TOOL_SCHEMAS, ToolContext, ToolRegistry, _clamp
 from support_common.config import Settings
 from support_common.enums import Channel, EscalationReason
 from support_common.errors import UpstreamUnavailable
 from support_common.schemas import SearchResponse
-
-from agent_service.tools import TOOL_SCHEMAS, ToolContext, ToolRegistry, _clamp
 
 
 class StubClient:
@@ -56,7 +54,9 @@ def registry(
     rag_error: Exception | None = None,
 ) -> tuple[ToolRegistry, StubClient, StubClient]:
     rag = StubClient(
-        search_response.model_dump(mode="json") if search_response else {"query": "q", "results": [], "took_ms": 1.0},
+        search_response.model_dump(mode="json")
+        if search_response
+        else {"query": "q", "results": [], "took_ms": 1.0},
         rag_error,
     )
     dispatcher = StubClient({"delivered": True})
@@ -292,11 +292,11 @@ class TestConfidenceClamp:
             (0.9, 0.9),
             (1.0, 1.0),
             (0.0, 0.0),
-            (90, 0.9),          # percentage despite the schema
-            (150, 1.0),         # nonsense, clamped
+            (90, 0.9),  # percentage despite the schema
+            (150, 1.0),  # nonsense, clamped
             (-0.5, 0.0),
-            ("0.8", 0.8),       # string from a sloppy model
-            (None, 0.5),        # default
+            ("0.8", 0.8),  # string from a sloppy model
+            (None, 0.5),  # default
             ("not a number", 0.5),
         ],
     )

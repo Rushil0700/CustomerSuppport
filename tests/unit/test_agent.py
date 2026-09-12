@@ -11,14 +11,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
-from support_common.config import Settings
-from support_common.enums import Channel, EscalationReason
-from support_common.schemas import AgentRequest, SearchResponse
-
 from agent_service.agent import SupportAgent
 from agent_service.ollama_client import ChatResponse, ToolCall
 from agent_service.tools import ToolRegistry
+from support_common.config import Settings
+from support_common.enums import Channel, EscalationReason
+from support_common.schemas import AgentRequest, SearchResponse
 
 GOOD_ANSWER = (
     "To reset your password, open the login page and choose Forgot password. "

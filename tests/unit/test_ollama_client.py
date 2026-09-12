@@ -5,11 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
-
+from agent_service.ollama_client import OllamaClient, extract_json, strip_reasoning
 from support_common.config import Settings
 from support_common.errors import LLMError, UpstreamUnavailable
-
-from agent_service.ollama_client import OllamaClient, extract_json, strip_reasoning
 
 HOST = "http://localhost:11434"
 
@@ -78,9 +76,7 @@ class TestChat:
         assert response.tool_calls[0].arguments == {"query": "password reset"}
 
     @respx.mock
-    async def test_arguments_sent_as_a_json_string_are_coerced(
-        self, client: OllamaClient
-    ) -> None:
+    async def test_arguments_sent_as_a_json_string_are_coerced(self, client: OllamaClient) -> None:
         """Some models serialise the arguments object as a string."""
         respx.post(f"{HOST}/api/chat").mock(
             return_value=httpx.Response(
@@ -117,9 +113,7 @@ class TestChat:
         assert response.content == "The answer."
 
     @respx.mock
-    async def test_a_missing_model_gives_an_actionable_error(
-        self, client: OllamaClient
-    ) -> None:
+    async def test_a_missing_model_gives_an_actionable_error(self, client: OllamaClient) -> None:
         respx.post(f"{HOST}/api/chat").mock(return_value=httpx.Response(404, text="not found"))
         with pytest.raises(LLMError, match="ollama pull test-model"):
             await client.chat([{"role": "user", "content": "hi"}])
@@ -191,9 +185,7 @@ class TestJsonExtraction:
         }
 
     def test_escaped_quotes_are_handled(self) -> None:
-        assert extract_json(r'{"answer": "she said \"hello\""}') == {
-            "answer": 'she said "hello"'
-        }
+        assert extract_json(r'{"answer": "she said \"hello\""}') == {"answer": 'she said "hello"'}
 
     @pytest.mark.parametrize("text", ["", "no json at all", "{unclosed: ", "[1, 2, 3]"])
     def test_unparseable_input_returns_none(self, text: str) -> None:

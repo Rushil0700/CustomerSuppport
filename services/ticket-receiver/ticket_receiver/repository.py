@@ -12,7 +12,6 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from support_common.enums import MessageSender, TicketStatus
 from support_common.errors import TicketNotFound
 from support_common.logging import get_logger
@@ -31,9 +30,7 @@ class TicketRepository:
     async def find_by_external_ref(self, channel: str, external_ref: str) -> Ticket | None:
         """Look up a ticket by its channel-native id, for idempotency."""
         result = await self.session.execute(
-            select(Ticket).where(
-                Ticket.channel == channel, Ticket.external_ref == external_ref
-            )
+            select(Ticket).where(Ticket.channel == channel, Ticket.external_ref == external_ref)
         )
         return result.scalar_one_or_none()
 
@@ -51,12 +48,17 @@ class TicketRepository:
         channel returns the original ticket instead of creating a second one.
         ``ON CONFLICT DO NOTHING`` makes that safe even when two replicas race.
         """
-        if payload.external_ref:
-            if (existing := await self.find_by_external_ref(
-                payload.channel.value, payload.external_ref
-            )) is not None:
-                log.info("ticket.duplicate_ignored", ticket_id=existing.ticket_id)
-                return existing, False
+        if (
+            payload.external_ref
+            and (
+                existing := await self.find_by_external_ref(
+                    payload.channel.value, payload.external_ref
+                )
+            )
+            is not None
+        ):
+            log.info("ticket.duplicate_ignored", ticket_id=existing.ticket_id)
+            return existing, False
 
         ticket_id = new_ticket_id()
         values: dict[str, Any] = {
@@ -192,13 +194,10 @@ class TicketRepository:
 
     async def stats(self) -> dict[str, Any]:
         """Headline numbers for the ops dashboard: volume, auto-resolution, cost."""
-        by_status = dict(
-            (
-                await self.session.execute(
-                    select(Ticket.status, func.count()).group_by(Ticket.status)
-                )
-            ).all()
+        status_rows = await self.session.execute(
+            select(Ticket.status, func.count()).group_by(Ticket.status)
         )
+        by_status: dict[TicketStatus, int] = dict(status_rows.all())  # type: ignore[arg-type]
         total = sum(by_status.values())
         resolved = by_status.get(TicketStatus.RESOLVED, 0)
         escalated = by_status.get(TicketStatus.ESCALATED, 0)

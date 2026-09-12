@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import pytest
-
 from support_common.enums import Channel, TicketPriority
-
 from ticket_receiver.adapters import (
     clean_slack_text,
     from_email,
@@ -65,7 +63,13 @@ class TestSlack:
     def test_the_profile_email_is_captured_when_present(self) -> None:
         ticket = from_slack_event(
             {
-                "event": {"type": "message", "text": "help with billing", "user": "U1", "channel": "C1", "ts": "1.0"},
+                "event": {
+                    "type": "message",
+                    "text": "help with billing",
+                    "user": "U1",
+                    "channel": "C1",
+                    "ts": "1.0",
+                },
                 "user_profile": {"email": "sam@customer.example", "real_name": "Sam Rossi"},
             }
         )
@@ -106,10 +110,13 @@ Everything else in the workspace works fine.
         assert from_email(raw).subject == "Échec de sync"
 
     def test_quoted_history_is_stripped(self) -> None:
-        raw = self.RAW + """
+        raw = (
+            self.RAW
+            + """
 On Wed, 11 Sep 2026 at 09:00, Acme Support wrote:
 > Have you tried pausing and resuming sync?
 """
+        )
         body = from_email(raw).body
         assert "pausing and resuming" not in body
         assert "sync spinner" in body
@@ -174,7 +181,8 @@ class TestZendesk:
 
 class TestPriorityInference:
     @pytest.mark.parametrize(
-        "text", ["This is URGENT", "our workspace is down", "everything is broken", "need this asap"]
+        "text",
+        ["This is URGENT", "our workspace is down", "everything is broken", "need this asap"],
     )
     def test_urgent_language_raises_priority(self, text: str) -> None:
         assert infer_priority("", text, TicketPriority.NORMAL) is TicketPriority.URGENT
@@ -194,6 +202,5 @@ class TestPriorityInference:
     def test_an_explicit_high_priority_is_never_lowered(self) -> None:
         """Inference only ever raises: the sender's own setting is evidence."""
         assert (
-            infer_priority("", "just a quick question", TicketPriority.HIGH)
-            is TicketPriority.HIGH
+            infer_priority("", "just a quick question", TicketPriority.HIGH) is TicketPriority.HIGH
         )

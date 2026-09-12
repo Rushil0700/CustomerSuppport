@@ -59,7 +59,7 @@ def get_engine() -> AsyncEngine:
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
     if _session_factory is None:
         init_engine()
-    assert _session_factory is not None  # noqa: S101 - set by init_engine
+    assert _session_factory is not None
     return _session_factory
 
 

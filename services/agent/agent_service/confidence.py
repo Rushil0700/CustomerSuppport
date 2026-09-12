@@ -19,20 +19,42 @@ from support_common.schemas import Citation
 # Matched against the customer's own words, before any inference runs, so a
 # clearly sensitive ticket never costs a model call.
 SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], EscalationReason]] = [
-    (re.compile(r"\b(lawyer|attorney|legal action|sue|lawsuit|court|subpoena)\b", re.I),
-     EscalationReason.POLICY_REQUIRED),
-    (re.compile(r"\b(gdpr|ccpa|right to (be forgotten|erasure)|erase (all )?my data)\b", re.I),
-     EscalationReason.POLICY_REQUIRED),
-    (re.compile(r"\b(hacked|compromised|breach|unauthori[sz]ed access|stolen account|phish)\w*\b", re.I),
-     EscalationReason.SENSITIVE_TOPIC),
-    (re.compile(r"\b(lost|don'?t have|no).{0,25}\b(recovery cod|2fa|mfa|authenticator)\w*\b", re.I),
-     EscalationReason.POLICY_REQUIRED),
-    (re.compile(r"\b(chargeback|dispute the charge|fraud(ulent)? charge)\b", re.I),
-     EscalationReason.POLICY_REQUIRED),
-    (re.compile(r"\b(speak|talk) to (a|an|someone|a real) ?(human|person|agent|manager)\b", re.I),
-     EscalationReason.CUSTOMER_REQUESTED),
-    (re.compile(r"\b(cancel my (contract|account)|terminate (our|the) (contract|agreement))\b", re.I),
-     EscalationReason.POLICY_REQUIRED),
+    (
+        re.compile(r"\b(lawyer|attorney|legal action|sue|lawsuit|court|subpoena)\b", re.I),
+        EscalationReason.POLICY_REQUIRED,
+    ),
+    (
+        re.compile(r"\b(gdpr|ccpa|right to (be forgotten|erasure)|erase (all )?my data)\b", re.I),
+        EscalationReason.POLICY_REQUIRED,
+    ),
+    (
+        re.compile(
+            r"\b(hacked|compromised|breach|unauthori[sz]ed access|stolen account|phish)\w*\b", re.I
+        ),
+        EscalationReason.SENSITIVE_TOPIC,
+    ),
+    (
+        re.compile(
+            r"\b(lost|don'?t have|no).{0,25}\b(recovery cod|2fa|mfa|authenticator)\w*\b", re.I
+        ),
+        EscalationReason.POLICY_REQUIRED,
+    ),
+    (
+        re.compile(r"\b(chargeback|dispute the charge|fraud(ulent)? charge)\b", re.I),
+        EscalationReason.POLICY_REQUIRED,
+    ),
+    (
+        re.compile(
+            r"\b(speak|talk) to (a|an|someone|a real) ?(human|person|agent|manager)\b", re.I
+        ),
+        EscalationReason.CUSTOMER_REQUESTED,
+    ),
+    (
+        re.compile(
+            r"\b(cancel my (contract|account)|terminate (our|the) (contract|agreement))\b", re.I
+        ),
+        EscalationReason.POLICY_REQUIRED,
+    ),
 ]
 
 # Hedging language: when the answer itself is unsure, the score should be too.
@@ -177,9 +199,45 @@ def _grounding(answer: str, citations: list[Citation]) -> float:
 
 
 _STOPWORDS = {
-    "the", "a", "an", "and", "or", "but", "if", "then", "to", "of", "in", "on", "for", "with",
-    "your", "you", "we", "it", "is", "are", "be", "can", "will", "this", "that", "from", "at",
-    "by", "as", "not", "do", "does", "how", "what", "when", "why", "please", "have", "has",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "your",
+    "you",
+    "we",
+    "it",
+    "is",
+    "are",
+    "be",
+    "can",
+    "will",
+    "this",
+    "that",
+    "from",
+    "at",
+    "by",
+    "as",
+    "not",
+    "do",
+    "does",
+    "how",
+    "what",
+    "when",
+    "why",
+    "please",
+    "have",
+    "has",
 }
 
 

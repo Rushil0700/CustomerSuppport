@@ -61,13 +61,12 @@ class Retriever:
             CACHE_NAMESPACE, request.query.lower().strip(), top_k, min_score, *request.categories
         )
 
-        if use_cache:
-            if (cached := await cache.get_json(key)) is not None:
-                RAG_QUERIES.labels("hit").inc()
-                response = SearchResponse.model_validate(cached)
-                response.cached = True
-                response.took_ms = round((time.perf_counter() - started) * 1000, 2)
-                return response
+        if use_cache and (cached := await cache.get_json(key)) is not None:
+            RAG_QUERIES.labels("hit").inc()
+            response = SearchResponse.model_validate(cached)
+            response.cached = True
+            response.took_ms = round((time.perf_counter() - started) * 1000, 2)
+            return response
 
         RAG_QUERIES.labels("miss").inc()
         embedding = await self.embedder.embed_query(request.query)

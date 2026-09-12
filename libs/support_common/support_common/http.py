@@ -83,9 +83,7 @@ class ServiceClient:
             reraise=True,
         )
         async def _attempt() -> httpx.Response:
-            response = await self._client.request(
-                method, path, headers=self._headers(), **kwargs
-            )
+            response = await self._client.request(method, path, headers=self._headers(), **kwargs)
             if response.status_code in RETRYABLE_STATUS:
                 raise RetryableHTTPError(f"{self.name} returned {response.status_code}")
             return response

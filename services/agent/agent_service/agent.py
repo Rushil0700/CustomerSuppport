@@ -101,11 +101,11 @@ class SupportAgent:
         started: float,
     ) -> AgentResult:
         messages: list[dict[str, Any]] = [{"role": "system", "content": self._system_prompt()}]
-        for turn in request.history:
+        for prior_turn in request.history:
             messages.append(
                 {
-                    "role": "assistant" if turn.role.value == "agent" else "user",
-                    "content": turn.content,
+                    "role": "assistant" if prior_turn.role.value == "agent" else "user",
+                    "content": prior_turn.content,
                 }
             )
         messages.append(
@@ -200,9 +200,7 @@ class SupportAgent:
                 tool_calls=records,
             )
 
-        return self._finalise(
-            request, context, records, started, turns_used, inference_seconds
-        )
+        return self._finalise(request, context, records, started, turns_used, inference_seconds)
 
     def _finalise(
         self,
@@ -215,7 +213,7 @@ class SupportAgent:
     ) -> AgentResult:
         """Apply the confidence gate and build the result."""
         decision = context.decision
-        assert decision is not None  # noqa: S101 - guaranteed by the caller
+        assert decision is not None
 
         if decision.escalated:
             return self._escalation_result(
@@ -374,4 +372,4 @@ def _redact(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-__all__ = ["SupportAgent", "TERMINAL_TOOLS"]
+__all__ = ["TERMINAL_TOOLS", "SupportAgent"]

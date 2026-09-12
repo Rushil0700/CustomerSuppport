@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
-
 from support_common.enums import (
     Channel,
     EscalationReason,
@@ -15,7 +14,6 @@ from support_common.enums import (
 )
 from support_common.errors import TicketNotFound
 from support_common.schemas import AgentResult, Citation, CustomerRef, TicketCreate
-
 from ticket_receiver.repository import TicketRepository
 
 pytestmark = pytest.mark.integration
@@ -107,9 +105,7 @@ class TestLifecycle:
         resolved = await repository.set_status(ticket.ticket_id, TicketStatus.RESOLVED)
         assert resolved.closed_at is not None
 
-    async def test_fetching_an_unknown_ticket_raises(
-        self, repository: TicketRepository
-    ) -> None:
+    async def test_fetching_an_unknown_ticket_raises(self, repository: TicketRepository) -> None:
         with pytest.raises(TicketNotFound):
             await repository.get("TKT-DOESNOTEXIST")
 
@@ -169,18 +165,14 @@ class TestResolutions:
 
 
 class TestQueries:
-    async def test_recent_tickets_are_newest_first(
-        self, repository: TicketRepository
-    ) -> None:
+    async def test_recent_tickets_are_newest_first(self, repository: TicketRepository) -> None:
         for index in range(5):
             await repository.create(make_ticket(f"ref-{index}"))
 
         recent = await repository.list_recent(limit=3)
         assert len(recent) == 3
 
-    async def test_listing_can_filter_by_status(
-        self, repository: TicketRepository
-    ) -> None:
+    async def test_listing_can_filter_by_status(self, repository: TicketRepository) -> None:
         first, _ = await repository.create(make_ticket("a"))
         await repository.create(make_ticket("b"))
         await repository.set_status(first.ticket_id, TicketStatus.RESOLVED)

@@ -8,6 +8,7 @@ whether a ticket arrived from Slack, an email, Zendesk or the API.
 from __future__ import annotations
 
 import email
+import email.utils
 import re
 from email.header import decode_header, make_header
 from email.message import Message
@@ -138,21 +139,24 @@ def _body_from_message(message: Message) -> str:
             if part.get_content_type() == "text/plain" and "attachment" not in str(
                 part.get("Content-Disposition", "")
             ):
-                payload = part.get_payload(decode=True)
+                # get_payload(decode=True) is typed as a union with Message
+                # because the overload can't see that decode=True is a bytes
+                # literal; with decode=True it is always bytes or None.
+                payload: bytes | None = part.get_payload(decode=True)  # type: ignore[assignment]
                 if payload:
                     return payload.decode(part.get_content_charset() or "utf-8", "replace")
         for part in message.walk():
             if part.get_content_type() == "text/html":
-                payload = part.get_payload(decode=True)
-                if payload:
-                    html = payload.decode(part.get_content_charset() or "utf-8", "replace")
+                html_payload: bytes | None = part.get_payload(decode=True)  # type: ignore[assignment]
+                if html_payload:
+                    html = html_payload.decode(part.get_content_charset() or "utf-8", "replace")
                     return re.sub(r"<[^>]+>", " ", html)
         return ""
 
-    payload = message.get_payload(decode=True)
-    if payload is None:
+    body_payload: bytes | None = message.get_payload(decode=True)  # type: ignore[assignment]
+    if body_payload is None:
         return str(message.get_payload() or "")
-    return payload.decode(message.get_content_charset() or "utf-8", "replace")
+    return body_payload.decode(message.get_content_charset() or "utf-8", "replace")
 
 
 def strip_quoted_reply(body: str) -> str:

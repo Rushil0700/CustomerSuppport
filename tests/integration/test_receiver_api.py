@@ -17,11 +17,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
-
 from support_common.enums import EscalationReason, MessageSender, TicketStatus
 from support_common.models import Ticket, TicketMessage, TicketResolution
 from support_common.schemas import AgentResult
-
 from ticket_receiver import main as receiver_main
 from ticket_receiver.pipeline import TicketPipeline
 
@@ -267,22 +265,16 @@ class TestSlackWebhook:
     def signed(body: bytes) -> dict[str, str]:
         timestamp = str(int(time.time()))
         base = b"v0:" + timestamp.encode() + b":" + body
-        signature = (
-            "v0=" + hmac.new(SLACK_SECRET.encode(), base, hashlib.sha256).hexdigest()
-        )
+        signature = "v0=" + hmac.new(SLACK_SECRET.encode(), base, hashlib.sha256).hexdigest()
         return {
             "x-slack-request-timestamp": timestamp,
             "x-slack-signature": signature,
             "content-type": "application/json",
         }
 
-    async def test_the_url_verification_challenge_is_echoed(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_the_url_verification_challenge_is_echoed(self, client: AsyncClient) -> None:
         body = b'{"type": "url_verification", "challenge": "abc123"}'
-        response = await client.post(
-            "/api/webhooks/slack", content=body, headers=self.signed(body)
-        )
+        response = await client.post("/api/webhooks/slack", content=body, headers=self.signed(body))
         assert response.json() == {"challenge": "abc123"}
 
     async def test_a_message_event_creates_a_ticket(
@@ -293,9 +285,7 @@ class TestSlackWebhook:
             b'"text": "our files are stuck syncing", "user": "U1", '
             b'"channel": "C1", "ts": "1717171717.000100"}}'
         )
-        response = await client.post(
-            "/api/webhooks/slack", content=body, headers=self.signed(body)
-        )
+        response = await client.post("/api/webhooks/slack", content=body, headers=self.signed(body))
         assert response.status_code == 201
 
         tickets = await rows(app_engine, Ticket)
@@ -310,9 +300,7 @@ class TestSlackWebhook:
             b'{"event": {"type": "message", "text": "an automated reply", '
             b'"bot_id": "B1", "channel": "C1", "ts": "1.0"}}'
         )
-        response = await client.post(
-            "/api/webhooks/slack", content=body, headers=self.signed(body)
-        )
+        response = await client.post("/api/webhooks/slack", content=body, headers=self.signed(body))
         assert response.json()["ignored"] == "bot_or_edit"
         assert await rows(app_engine, Ticket) == []
 
@@ -386,9 +374,7 @@ class TestZendeskWebhook:
 
 
 class TestReadEndpoints:
-    async def test_a_ticket_and_its_messages_can_be_fetched(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_a_ticket_and_its_messages_can_be_fetched(self, client: AsyncClient) -> None:
         ticket_id = (await client.post("/api/tickets", json=ticket_body())).json()["ticket_id"]
 
         ticket = await client.get(f"/api/tickets/{ticket_id}")
@@ -406,9 +392,7 @@ class TestReadEndpoints:
 
     async def test_tickets_can_be_listed_and_filtered(self, client: AsyncClient) -> None:
         for index in range(3):
-            await client.post(
-                "/api/tickets", json=ticket_body(external_ref=f"list-{index}")
-            )
+            await client.post("/api/tickets", json=ticket_body(external_ref=f"list-{index}"))
 
         listed = await client.get("/api/tickets", params={"limit": 10})
         assert len(listed.json()) == 3
@@ -416,9 +400,7 @@ class TestReadEndpoints:
         resolved = await client.get("/api/tickets", params={"status": "resolved"})
         assert len(resolved.json()) == 3
 
-    async def test_stats_report_the_auto_resolution_rate(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_stats_report_the_auto_resolution_rate(self, client: AsyncClient) -> None:
         await client.post("/api/tickets", json=ticket_body())
         stats = (await client.get("/api/stats")).json()
         assert stats["tickets_total"] == 1

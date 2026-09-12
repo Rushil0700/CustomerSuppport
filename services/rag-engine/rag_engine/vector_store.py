@@ -8,6 +8,7 @@ the same interface for the cloud deployment, selected by ``VECTOR_BACKEND``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -122,7 +123,9 @@ class ChromaVectorStore(VectorStore):
                 ids=[r.id for r in records],
                 embeddings=[r.embedding for r in records],
                 documents=[r.text for r in records],
-                metadatas=[_flatten_metadata(r.metadata) for r in records],
+                # Chroma rejects an empty metadata dict outright, which a
+                # VectorRecord with no metadata would otherwise produce.
+                metadatas=[_flatten_metadata(r.metadata) or {"_empty": True} for r in records],
             )
 
         await asyncio.to_thread(_write)
@@ -152,9 +155,7 @@ class ChromaVectorStore(VectorStore):
         distances = (raw.get("distances") or [[]])[0]
 
         hits: list[VectorHit] = []
-        for doc_id, text, meta, distance in zip(
-            ids, documents, metadatas, distances, strict=False
-        ):
+        for doc_id, text, meta, distance in zip(ids, documents, metadatas, distances, strict=False):
             hits.append(
                 VectorHit(
                     id=doc_id,
@@ -174,12 +175,11 @@ class ChromaVectorStore(VectorStore):
     async def reset(self) -> None:
         await self._get_collection()  # guarantees self._client is connected
         client = self._client
+        assert client is not None
 
         def _drop() -> None:
-            try:
+            with contextlib.suppress(Exception):  # collection may already be gone
                 client.delete_collection(self.collection_name)
-            except Exception:  # collection may already be gone
-                pass
 
         async with self._lock:
             await asyncio.to_thread(_drop)
@@ -244,16 +244,12 @@ class PineconeVectorStore(VectorStore):
 
         def _write() -> None:
             for batch in batches:
-                index.upsert(
-                    vectors=[
-                        {
-                            "id": r.id,
-                            "values": r.embedding,
-                            "metadata": {**_flatten_metadata(r.metadata), "text": r.text},
-                        }
-                        for r in batch
-                    ]
-                )
+                vectors = []
+                for r in batch:
+                    metadata: dict[str, Any] = _flatten_metadata(r.metadata)
+                    metadata["text"] = r.text
+                    vectors.append({"id": r.id, "values": r.embedding, "metadata": metadata})
+                index.upsert(vectors=vectors)
 
         await asyncio.to_thread(_write)
         return len(records)

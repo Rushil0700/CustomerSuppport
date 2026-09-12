@@ -30,6 +30,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "services" / "agent"))
 sys.path.insert(0, str(REPO_ROOT / "services" / "rag-engine"))
 
+from agent_service.agent import SupportAgent  # noqa: E402
+from agent_service.tools import ToolRegistry  # noqa: E402
+from rag_engine.retriever import Retriever  # noqa: E402
 from support_common.config import get_settings  # noqa: E402
 from support_common.enums import Channel  # noqa: E402
 from support_common.logging import configure_logging  # noqa: E402
@@ -39,10 +42,6 @@ from support_common.schemas import (  # noqa: E402
     SearchRequest,
     SearchResponse,
 )
-
-from agent_service.agent import SupportAgent  # noqa: E402
-from agent_service.tools import ToolRegistry  # noqa: E402
-from rag_engine.retriever import Retriever  # noqa: E402
 
 
 @dataclass
@@ -61,27 +60,150 @@ class Case:
 # reach a human. The mix is deliberately harder than real traffic - it has no
 # duplicate questions, which is where caching and easy wins come from.
 CASES: list[Case] = [
-    Case("Forgot my password", "I can't log in. I forgot my password and the reset email never arrives, I checked spam.", Channel.EMAIL, True, ["account-password-reset"]),
-    Case("Files stuck syncing", "Three files have been showing the syncing spinner for two hours. Everything else works.", Channel.SLACK, True, ["troubleshooting-sync-stuck"]),
-    Case("Where is my invoice", "Our finance team needs a PDF invoice for last month for expenses. Where do I download it?", Channel.EMAIL, True, ["billing-invoice-copy"]),
-    Case("Getting 429 from your API", "Our integration started returning 429 rate_limited this morning. What are the limits and how should we handle it?", Channel.API, True, ["api-error-429-rate_limited"]),
-    Case("Slack integration broken", "Our Slack integration shows 'Needs attention' and no messages come through any more.", Channel.SLACK, True, ["integration-slack-troubleshoot"]),
-    Case("How many seats on Team", "We're on the Team plan. How many seats does that include, and how are they counted?", Channel.WEB, True, ["plan-team", "billing-seat-count-team"]),
-    Case("Invite email not received", "I invited a colleague three days ago and they say they never got the email.", Channel.EMAIL, True, ["account-invite-not-received"]),
-    Case("How do I turn on 2FA", "Our security team wants two-factor authentication enabled for everyone. How do we do that?", Channel.WEB, True, ["account-enable-mfa"]),
-    Case("Storage is full", "We're getting 'storage limit reached' and sync has paused for the whole team.", Channel.SLACK, True, ["troubleshooting-storage-full"]),
-    Case("Share link not working", "I sent a share link to a client and they see 'not available'. It worked yesterday.", Channel.EMAIL, True, ["troubleshooting-share-link-not-working"]),
-    Case("Payment failed", "Our card was declined and I got an email about it. What happens to our workspace now?", Channel.EMAIL, True, ["billing-failed-payment"]),
-    Case("Which file types preview", "Can your app preview PSD files and ZIP archives, or only documents?", Channel.WEB, True, ["faq-supported-file-types"]),
-    Case("How long is version history", "How far back can I restore an earlier version of a spreadsheet?", Channel.WEB, True, ["faq-version-history"]),
+    Case(
+        "Forgot my password",
+        "I can't log in. I forgot my password and the reset email never arrives, I checked spam.",
+        Channel.EMAIL,
+        True,
+        ["account-password-reset"],
+    ),
+    Case(
+        "Files stuck syncing",
+        "Three files have been showing the syncing spinner for two hours. Everything else works.",
+        Channel.SLACK,
+        True,
+        ["troubleshooting-sync-stuck"],
+    ),
+    Case(
+        "Where is my invoice",
+        "Our finance team needs a PDF invoice for last month for expenses. Where do I download it?",
+        Channel.EMAIL,
+        True,
+        ["billing-invoice-copy"],
+    ),
+    Case(
+        "Getting 429 from your API",
+        "Our integration started returning 429 rate_limited this morning. "
+        "What are the limits and how should we handle it?",
+        Channel.API,
+        True,
+        ["api-error-429-rate_limited"],
+    ),
+    Case(
+        "Slack integration broken",
+        "Our Slack integration shows 'Needs attention' and no messages come through any more.",
+        Channel.SLACK,
+        True,
+        ["integration-slack-troubleshoot"],
+    ),
+    Case(
+        "How many seats on Team",
+        "We're on the Team plan. How many seats does that include, and how are they counted?",
+        Channel.WEB,
+        True,
+        ["plan-team", "billing-seat-count-team"],
+    ),
+    Case(
+        "Invite email not received",
+        "I invited a colleague three days ago and they say they never got the email.",
+        Channel.EMAIL,
+        True,
+        ["account-invite-not-received"],
+    ),
+    Case(
+        "How do I turn on 2FA",
+        "Our security team wants two-factor authentication enabled for everyone. "
+        "How do we do that?",
+        Channel.WEB,
+        True,
+        ["account-enable-mfa"],
+    ),
+    Case(
+        "Storage is full",
+        "We're getting 'storage limit reached' and sync has paused for the whole team.",
+        Channel.SLACK,
+        True,
+        ["troubleshooting-storage-full"],
+    ),
+    Case(
+        "Share link not working",
+        "I sent a share link to a client and they see 'not available'. It worked yesterday.",
+        Channel.EMAIL,
+        True,
+        ["troubleshooting-share-link-not-working"],
+    ),
+    Case(
+        "Payment failed",
+        "Our card was declined and I got an email about it. What happens to our workspace now?",
+        Channel.EMAIL,
+        True,
+        ["billing-failed-payment"],
+    ),
+    Case(
+        "Which file types preview",
+        "Can your app preview PSD files and ZIP archives, or only documents?",
+        Channel.WEB,
+        True,
+        ["faq-supported-file-types"],
+    ),
+    Case(
+        "How long is version history",
+        "How far back can I restore an earlier version of a spreadsheet?",
+        Channel.WEB,
+        True,
+        ["faq-version-history"],
+    ),
     # Must escalate.
-    Case("Lost my 2FA device", "My phone was stolen and I don't have my recovery codes. I need access to my account immediately.", Channel.EMAIL, False, note="MFA reset requires identity verification"),
-    Case("Refund for our annual plan", "We paid for a year back in March and want a full refund now. Please process it today.", Channel.EMAIL, False, note="outside the 30 day refund window"),
-    Case("I think we've been hacked", "There are share links in our workspace that nobody recognises. Please help urgently.", Channel.SLACK, False, note="suspected compromise"),
-    Case("Delete all my data", "Under GDPR I am requesting that you erase all of my personal data immediately.", Channel.EMAIL, False, note="erasure request"),
-    Case("Speak to a person", "I don't want to talk to a bot. Please put me through to a real human being.", Channel.SLACK, False, note="customer asked for a human"),
-    Case("Our lawyer will contact you", "We are considering legal action over last week's outage. Our lawyer will be in touch.", Channel.EMAIL, False, note="legal matter"),
-    Case("Dispute this charge", "I'm filing a chargeback with my bank for the payment you took in error.", Channel.EMAIL, False, note="payment dispute"),
+    Case(
+        "Lost my 2FA device",
+        "My phone was stolen and I don't have my recovery codes. "
+        "I need access to my account immediately.",
+        Channel.EMAIL,
+        False,
+        note="MFA reset requires identity verification",
+    ),
+    Case(
+        "Refund for our annual plan",
+        "We paid for a year back in March and want a full refund now. Please process it today.",
+        Channel.EMAIL,
+        False,
+        note="outside the 30 day refund window",
+    ),
+    Case(
+        "I think we've been hacked",
+        "There are share links in our workspace that nobody recognises. Please help urgently.",
+        Channel.SLACK,
+        False,
+        note="suspected compromise",
+    ),
+    Case(
+        "Delete all my data",
+        "Under GDPR I am requesting that you erase all of my personal data immediately.",
+        Channel.EMAIL,
+        False,
+        note="erasure request",
+    ),
+    Case(
+        "Speak to a person",
+        "I don't want to talk to a bot. Please put me through to a real human being.",
+        Channel.SLACK,
+        False,
+        note="customer asked for a human",
+    ),
+    Case(
+        "Our lawyer will contact you",
+        "We are considering legal action over last week's outage. Our lawyer will be in touch.",
+        Channel.EMAIL,
+        False,
+        note="legal matter",
+    ),
+    Case(
+        "Dispute this charge",
+        "I'm filing a chargeback with my bank for the payment you took in error.",
+        Channel.EMAIL,
+        False,
+        note="payment dispute",
+    ),
 ]
 
 
@@ -224,9 +346,7 @@ def summarise(outcomes: list[Outcome], wall_seconds: float) -> dict:
         )
         if must_escalate
         else None,
-        "retrieval_hit_rate": round(
-            sum(o.retrieval_hit for o in resolvable) / len(resolvable), 4
-        )
+        "retrieval_hit_rate": round(sum(o.retrieval_hit for o in resolvable) / len(resolvable), 4)
         if resolvable
         else None,
         "mean_confidence_when_resolved": round(
@@ -264,18 +384,18 @@ def report(summary: dict) -> None:
     latency, cost = summary["latency_seconds"], summary["cost_usd"]
     print(
         f"""
-{'=' * 62}
-  Auto-resolution rate      {summary['auto_resolution_rate']:.1%}   (target 60-65%)
-  Decision accuracy         {summary['decision_accuracy']:.1%}
-  Recall on answerable      {_pct(summary['recall_on_answerable'])}
-  False-resolution rate     {_pct(summary['false_resolution_rate'])}   (lower is better)
-  Retrieval hit rate        {_pct(summary['retrieval_hit_rate'])}
-  Mean confidence           {_num(summary['mean_confidence_when_resolved'])}
-  Latency  mean/median/max  {latency['mean']}s / {latency['median']}s / {latency['max']}s
-  Mean turns                {summary['mean_turns']}
-  Cost per ticket  mean/max ${cost['mean']:.4f} / ${cost['max']:.4f}   (target <= $0.08)
-  Total wall time           {summary['wall_seconds']}s
-{'=' * 62}"""
+{"=" * 62}
+  Auto-resolution rate      {summary["auto_resolution_rate"]:.1%}   (target 60-65%)
+  Decision accuracy         {summary["decision_accuracy"]:.1%}
+  Recall on answerable      {_pct(summary["recall_on_answerable"])}
+  False-resolution rate     {_pct(summary["false_resolution_rate"])}   (lower is better)
+  Retrieval hit rate        {_pct(summary["retrieval_hit_rate"])}
+  Mean confidence           {_num(summary["mean_confidence_when_resolved"])}
+  Latency  mean/median/max  {latency["mean"]}s / {latency["median"]}s / {latency["max"]}s
+  Mean turns                {summary["mean_turns"]}
+  Cost per ticket  mean/max ${cost["mean"]:.4f} / ${cost["max"]:.4f}   (target <= $0.08)
+  Total wall time           {summary["wall_seconds"]}s
+{"=" * 62}"""
     )
     if summary["escalation_reasons"]:
         print("  Escalations by reason:")

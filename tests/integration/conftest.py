@@ -17,7 +17,6 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
-
 from support_common import database
 from support_common.models import Base
 
@@ -79,13 +78,11 @@ async def app_engine(engine: AsyncEngine) -> AsyncIterator[AsyncEngine]:
     globals, so an app-level test has to replace them rather than pass a session.
     """
     await database.dispose_engine()
-    database._engine = engine  # noqa: SLF001 - deliberate test wiring
-    database._session_factory = async_sessionmaker(  # noqa: SLF001
-        engine, expire_on_commit=False, autoflush=False
-    )
+    database._engine = engine
+    database._session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     yield engine
-    database._engine = None  # noqa: SLF001
-    database._session_factory = None  # noqa: SLF001
+    database._engine = None
+    database._session_factory = None
 
 
 @pytest.fixture

@@ -14,7 +14,6 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, Header, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from support_common import cache
 from support_common.app import create_app
 from support_common.config import get_settings

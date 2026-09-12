@@ -21,9 +21,9 @@ os.environ.setdefault("API_KEY", "test-key")
 os.environ.setdefault("DISPATCH_DRY_RUN", "true")
 os.environ.setdefault("METRICS_ENABLED", "true")
 
-from support_common.config import Settings, get_settings  # noqa: E402
-from support_common.enums import Channel, TicketPriority  # noqa: E402
-from support_common.schemas import (  # noqa: E402
+from support_common.config import Settings, get_settings
+from support_common.enums import Channel, TicketPriority
+from support_common.schemas import (
     AgentRequest,
     Citation,
     CustomerRef,
@@ -163,7 +163,6 @@ async def db_session(postgres_url: str) -> AsyncIterator[Any]:
     machine with nothing running.
     """
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
     from support_common.models import Base
 
     engine = create_async_engine(postgres_url, poolclass=None)

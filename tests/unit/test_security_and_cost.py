@@ -8,7 +8,6 @@ import hmac
 import time
 
 import pytest
-
 from support_common.cost import CostModel, estimate_ticket_cost
 from support_common.errors import InvalidSignature
 from support_common.security import (
@@ -81,9 +80,7 @@ class TestZendeskSignature:
         timestamp = "2026-09-12T10:00:00Z"
         body = b'{"ticket": {"id": 1}}'
         signature = base64.b64encode(
-            hmac.new(
-                SECRET.encode(), (timestamp + body.decode()).encode(), hashlib.sha256
-            ).digest()
+            hmac.new(SECRET.encode(), (timestamp + body.decode()).encode(), hashlib.sha256).digest()
         ).decode()
         verify_zendesk_signature(body, signature, timestamp, secret=SECRET)
 

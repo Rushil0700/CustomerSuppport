@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-
 from support_common.config import Settings, get_settings
 from support_common.errors import LLMError, UpstreamUnavailable
 from support_common.logging import get_logger
@@ -107,10 +106,14 @@ class OllamaClient:
             response = await self._client.post("/api/chat", json=payload)
         except httpx.TimeoutException as exc:
             LLM_CALLS.labels(self.model, "timeout").inc()
-            raise LLMError(f"ollama timed out after {self.settings.ollama_timeout_seconds}s") from exc
+            raise LLMError(
+                f"ollama timed out after {self.settings.ollama_timeout_seconds}s"
+            ) from exc
         except httpx.HTTPError as exc:
             LLM_CALLS.labels(self.model, "transport_error").inc()
-            raise UpstreamUnavailable(f"cannot reach ollama at {self.settings.ollama_host}: {exc}") from exc
+            raise UpstreamUnavailable(
+                f"cannot reach ollama at {self.settings.ollama_host}: {exc}"
+            ) from exc
 
         elapsed = time.perf_counter() - started
         if response.status_code == 404:

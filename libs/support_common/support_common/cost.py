@@ -59,6 +59,4 @@ def estimate_ticket_cost(
     model: CostModel | None = None,
 ) -> float:
     """Convenience wrapper around :meth:`CostModel.estimate`."""
-    return (model or DEFAULT_COST_MODEL).estimate(
-        inference_seconds, concurrency=concurrency
-    )
+    return (model or DEFAULT_COST_MODEL).estimate(inference_seconds, concurrency=concurrency)

@@ -21,6 +21,12 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+# Exception names read clearly without the Error suffix (TicketNotFound,
+# DispatchFailed); renaming would touch every call site for no clarity gain.
+"libs/support_common/support_common/errors.py" = ["N818"]
+# Prose content for 500+ knowledge base articles - wrapping it would hurt
+# readability far more than it helps.
+"scripts/generate_kb.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

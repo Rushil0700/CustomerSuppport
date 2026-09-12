@@ -12,7 +12,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import JSONResponse
-
 from support_common.app import create_app
 from support_common.config import get_settings
 from support_common.errors import UpstreamUnavailable

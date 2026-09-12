@@ -63,15 +63,15 @@ policy_required, sensitive_topic.
 """
 
 PRIORITY_NOTE = {
-    TicketPriority.URGENT: "This ticket is marked URGENT. Be decisive: resolve or escalate quickly.",
+    TicketPriority.URGENT: "This ticket is marked URGENT. Be decisive: resolve or escalate fast.",
     TicketPriority.HIGH: "This ticket is marked high priority.",
     TicketPriority.NORMAL: "",
     TicketPriority.LOW: "",
 }
 
 CHANNEL_NOTE = {
-    Channel.SLACK: "The reply appears in Slack. Keep it tight and use plain text, not Markdown tables.",
-    Channel.EMAIL: "The reply is sent as an email. A short subject-appropriate opening line is fine.",
+    Channel.SLACK: "The reply appears in Slack. Keep it tight, plain text, not Markdown tables.",
+    Channel.EMAIL: "The reply is sent as an email. A short subject-appropriate opening is fine.",
     Channel.API: "The reply is returned over the API to another system. Plain text only.",
     Channel.ZENDESK: "The reply is posted as a Zendesk public comment.",
     Channel.WEB: "The reply appears in the in-app support widget. Keep it brief.",

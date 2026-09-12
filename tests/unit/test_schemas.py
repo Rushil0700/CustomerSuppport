@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-
 from support_common.enums import Channel, EscalationReason, TicketStatus
 from support_common.schemas import (
     AgentResult,
@@ -99,9 +98,7 @@ class TestAgentResult:
 
     def test_confidence_is_bounded(self) -> None:
         with pytest.raises(ValidationError):
-            AgentResult(
-                ticket_id="TKT-ABCDEF123456", resolved=True, answer="a", confidence=1.5
-            )
+            AgentResult(ticket_id="TKT-ABCDEF123456", resolved=True, answer="a", confidence=1.5)
 
     def test_valid_escalation_round_trips(self) -> None:
         result = AgentResult(
@@ -118,9 +115,7 @@ class TestAgentResult:
         from support_common.schemas import AgentRequest
 
         with pytest.raises(ValidationError, match="malformed ticket id"):
-            AgentRequest(
-                ticket_id="not-a-ticket", subject="s", body="b", channel=Channel.API
-            )
+            AgentRequest(ticket_id="not-a-ticket", subject="s", body="b", channel=Channel.API)
 
 
 class TestSearchSchemas:
@@ -147,9 +142,12 @@ class TestFeedback:
 
     @pytest.mark.parametrize("score", [1, 3, 5])
     def test_valid_scores_are_accepted(self, score: int) -> None:
-        assert FeedbackCreate(
-            ticket_id="TKT-ABCDEF123456", satisfaction_score=score
-        ).satisfaction_score == score
+        assert (
+            FeedbackCreate(
+                ticket_id="TKT-ABCDEF123456", satisfaction_score=score
+            ).satisfaction_score
+            == score
+        )
 
 
 class TestEnums:

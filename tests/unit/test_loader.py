@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from rag_engine.loader import (
     KBDocument,
     chunk_document,
@@ -75,9 +74,7 @@ class TestSectionSplitting:
 
 class TestChunking:
     def _doc(self, content: str) -> KBDocument:
-        return KBDocument(
-            doc_id="d1", title="T", category="c", source="c/d1.md", content=content
-        )
+        return KBDocument(doc_id="d1", title="T", category="c", source="c/d1.md", content=content)
 
     def test_a_short_document_is_one_chunk_per_section(self) -> None:
         chunks = chunk_document(self._doc("# A\n\nshort body"), chunk_size=900)
@@ -143,9 +140,7 @@ class TestLoading:
         with pytest.raises(FileNotFoundError):
             load_documents(tmp_path / "nope")
 
-    def test_chunking_a_corpus_returns_chunks_for_every_document(
-        self, tmp_path: Path
-    ) -> None:
+    def test_chunking_a_corpus_returns_chunks_for_every_document(self, tmp_path: Path) -> None:
         for i in range(3):
             (tmp_path / f"doc{i}.md").write_text(
                 f"---\nid: d{i}\ntitle: T{i}\ncategory: c\n---\n\n# H\n\nbody text",

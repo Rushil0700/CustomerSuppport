@@ -17,7 +17,6 @@ from pathlib import Path
 from sqlalchemy import Index
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateIndex, CreateTable
-
 from support_common.models import Base
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -47,11 +46,16 @@ def render() -> str:
     parts.append("\n-- Enum types\n")
     for table in Base.metadata.sorted_tables:
         for column in table.columns:
-            enum_type = getattr(column.type, "native_enum", None)
-            name = getattr(column.type, "name", None)
-            if enum_type and name and name not in seen_enums:
+            column_type = column.type
+            if (
+                isinstance(column_type, postgresql.ENUM)
+                and column_type.native_enum
+                and column_type.name
+                and column_type.name not in seen_enums
+            ):
+                name = column_type.name
                 seen_enums.add(name)
-                values = ", ".join(f"'{v}'" for v in column.type.enums)
+                values = ", ".join(f"'{v}'" for v in column_type.enums)
                 parts.append(
                     f"DO $$ BEGIN\n"
                     f"    CREATE TYPE {name} AS ENUM ({values});\n"

@@ -20,15 +20,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-
-from support_common.config import get_settings
-from support_common.enums import Channel, EscalationReason
-from support_common.schemas import AgentRequest, SearchRequest, SearchResponse
-
 from agent_service.agent import SupportAgent
 from agent_service.ollama_client import OllamaClient
 from agent_service.tools import ToolRegistry
 from rag_engine.retriever import Retriever
+from support_common.config import get_settings
+from support_common.enums import Channel, EscalationReason
+from support_common.schemas import AgentRequest, SearchRequest, SearchResponse
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
@@ -125,9 +123,7 @@ class TestLiveResolution:
         for forbidden in ("knowledge base", "search_kb", "as an ai", "article id"):
             assert forbidden not in lowered
 
-    async def test_the_agent_searches_before_answering(
-        self, live_agent: SupportAgent
-    ) -> None:
+    async def test_the_agent_searches_before_answering(self, live_agent: SupportAgent) -> None:
         await live_agent.handle(
             request(
                 "How do I download an invoice",
@@ -176,9 +172,7 @@ class TestLiveEscalation:
 
 
 class TestLiveInvariants:
-    async def test_every_ticket_reaches_a_decision(
-        self, live_agent: SupportAgent
-    ) -> None:
+    async def test_every_ticket_reaches_a_decision(self, live_agent: SupportAgent) -> None:
         """The core invariant, against the real model: nothing is ever dropped."""
         tickets = [
             ("Cannot sign in", "I forgot my password and the reset email never arrives."),
@@ -187,9 +181,7 @@ class TestLiveInvariants:
             ("Very long", "please help " * 400),
         ]
         for subject, body in tickets:
-            result = await live_agent.handle(
-                request(subject or "No subject", body)
-            )
+            result = await live_agent.handle(request(subject or "No subject", body))
             assert result.resolved != result.escalated
             assert result.answer.strip()
             assert 0.0 <= result.confidence <= 1.0

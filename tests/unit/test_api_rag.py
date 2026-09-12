@@ -6,13 +6,11 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-
-from support_common.config import Settings
-from support_common.schemas import SearchRequest
-
 from rag_engine import main as rag_main
 from rag_engine.retriever import Retriever
 from rag_engine.vector_store import VectorHit, VectorRecord, VectorStore
+from support_common.config import Settings
+from support_common.schemas import SearchRequest
 
 
 class FakeEmbedder:
@@ -129,9 +127,7 @@ class TestSearch:
         assert payload["results"][0]["score"] >= payload["results"][-1]["score"]
         assert payload["cached"] is False
 
-    async def test_results_below_the_score_floor_are_dropped(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_results_below_the_score_floor_are_dropped(self, client: AsyncClient) -> None:
         response = await client.post(
             "/api/search", json={"query": "an unrelated question entirely", "min_score": 0.5}
         )

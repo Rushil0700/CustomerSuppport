@@ -127,7 +127,7 @@ def load_documents(kb_dir: Path) -> list[KBDocument]:
                 category=str(meta.get("category") or path.parent.name or "general"),
                 source=relative,
                 content=body.strip(),
-                tags=[t for t in tags] if isinstance(tags, list) else [str(tags)],
+                tags=list(tags) if isinstance(tags, list) else [str(tags)],
                 metadata={
                     k: v for k, v in meta.items() if k not in {"id", "title", "category", "tags"}
                 },

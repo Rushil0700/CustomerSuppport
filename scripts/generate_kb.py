@@ -103,7 +103,13 @@ PLAN_LABEL = {
     "enterprise": "Enterprise",
 }
 PLAN_SEATS = {"free": 1, "starter": 3, "team": 25, "business": 200, "enterprise": "unlimited"}
-PLAN_PRICE = {"free": "$0", "starter": "$12", "team": "$29", "business": "$59", "enterprise": "custom"}
+PLAN_PRICE = {
+    "free": "$0",
+    "starter": "$12",
+    "team": "$29",
+    "business": "$59",
+    "enterprise": "custom",
+}
 
 INTEGRATIONS = [
     ("slack", "Slack"),
@@ -134,273 +140,702 @@ INTEGRATIONS = [
 ]
 
 API_ERRORS = [
-    ("400", "invalid_request", "A required field was missing or malformed.",
-     "Compare your payload against the schema at /docs/api#schemas. The `detail` array names the offending field."),
-    ("401", "missing_credentials", "No API key was supplied.",
-     "Send the key in the `Authorization: Bearer sk_live_...` header, not as a query parameter."),
-    ("401", "invalid_api_key", "The key was revoked, rotated, or mistyped.",
-     "Generate a fresh key under Settings > Developers > API keys and update your secret store."),
-    ("403", "insufficient_scope", "The key lacks the scope the endpoint requires.",
-     "Edit the key and grant the scope named in the error, then retry. Scopes take effect immediately."),
-    ("403", "plan_restricted", "The endpoint is not available on your plan.",
-     "The API is available from the Team plan upward. Upgrade under Settings > Billing."),
-    ("404", "resource_not_found", "The id does not exist, or belongs to another workspace.",
-     "Confirm the id and that your key belongs to the same workspace as the resource."),
-    ("409", "idempotency_conflict", "The same Idempotency-Key was reused with a different body.",
-     "Generate a new UUID per logical operation; reuse a key only when retrying that exact request."),
-    ("409", "version_conflict", "The record changed between your read and your write.",
-     "Re-read the record, reapply your change to the new `version`, and retry."),
-    ("413", "payload_too_large", "The request body exceeded 10 MB.",
-     "Use the multipart upload endpoint for files above 10 MB."),
-    ("422", "validation_failed", "The payload parsed but failed business validation.",
-     "Read the `errors[].field` and `errors[].reason` pairs; each maps to one input."),
-    ("429", "rate_limited", "You exceeded the requests-per-minute budget for your plan.",
-     "Honour the `Retry-After` header and back off exponentially. Burst capacity refills over 60 seconds."),
-    ("429", "concurrency_limited", "Too many simultaneous long-running jobs.",
-     "Queue jobs client-side and keep in-flight jobs under the limit shown in the error `detail`."),
-    ("500", "internal_error", "An unexpected failure on our side.",
-     f"Retry with backoff. If it persists, send us the `request_id` from the response and check {STATUS_PAGE}."),
-    ("502", "upstream_error", "A downstream provider failed.",
-     "Safe to retry; these are almost always transient."),
-    ("503", "maintenance", "The endpoint is briefly unavailable during a deploy.",
-     f"Retry after the interval in `Retry-After`. Watch {STATUS_PAGE} for scheduled windows."),
-    ("504", "timeout", "The request exceeded the 30 second gateway budget.",
-     "Narrow the query with filters or pagination; export endpoints should be used for bulk reads."),
+    (
+        "400",
+        "invalid_request",
+        "A required field was missing or malformed.",
+        "Compare your payload against the schema at /docs/api#schemas. The `detail` array names the offending field.",
+    ),
+    (
+        "401",
+        "missing_credentials",
+        "No API key was supplied.",
+        "Send the key in the `Authorization: Bearer sk_live_...` header, not as a query parameter.",
+    ),
+    (
+        "401",
+        "invalid_api_key",
+        "The key was revoked, rotated, or mistyped.",
+        "Generate a fresh key under Settings > Developers > API keys and update your secret store.",
+    ),
+    (
+        "403",
+        "insufficient_scope",
+        "The key lacks the scope the endpoint requires.",
+        "Edit the key and grant the scope named in the error, then retry. Scopes take effect immediately.",
+    ),
+    (
+        "403",
+        "plan_restricted",
+        "The endpoint is not available on your plan.",
+        "The API is available from the Team plan upward. Upgrade under Settings > Billing.",
+    ),
+    (
+        "404",
+        "resource_not_found",
+        "The id does not exist, or belongs to another workspace.",
+        "Confirm the id and that your key belongs to the same workspace as the resource.",
+    ),
+    (
+        "409",
+        "idempotency_conflict",
+        "The same Idempotency-Key was reused with a different body.",
+        "Generate a new UUID per logical operation; reuse a key only when retrying that exact request.",
+    ),
+    (
+        "409",
+        "version_conflict",
+        "The record changed between your read and your write.",
+        "Re-read the record, reapply your change to the new `version`, and retry.",
+    ),
+    (
+        "413",
+        "payload_too_large",
+        "The request body exceeded 10 MB.",
+        "Use the multipart upload endpoint for files above 10 MB.",
+    ),
+    (
+        "422",
+        "validation_failed",
+        "The payload parsed but failed business validation.",
+        "Read the `errors[].field` and `errors[].reason` pairs; each maps to one input.",
+    ),
+    (
+        "429",
+        "rate_limited",
+        "You exceeded the requests-per-minute budget for your plan.",
+        "Honour the `Retry-After` header and back off exponentially. Burst capacity refills over 60 seconds.",
+    ),
+    (
+        "429",
+        "concurrency_limited",
+        "Too many simultaneous long-running jobs.",
+        "Queue jobs client-side and keep in-flight jobs under the limit shown in the error `detail`.",
+    ),
+    (
+        "500",
+        "internal_error",
+        "An unexpected failure on our side.",
+        f"Retry with backoff. If it persists, send us the `request_id` from the response and check {STATUS_PAGE}.",
+    ),
+    (
+        "502",
+        "upstream_error",
+        "A downstream provider failed.",
+        "Safe to retry; these are almost always transient.",
+    ),
+    (
+        "503",
+        "maintenance",
+        "The endpoint is briefly unavailable during a deploy.",
+        f"Retry after the interval in `Retry-After`. Watch {STATUS_PAGE} for scheduled windows.",
+    ),
+    (
+        "504",
+        "timeout",
+        "The request exceeded the 30 second gateway budget.",
+        "Narrow the query with filters or pagination; export endpoints should be used for bulk reads.",
+    ),
 ]
 
 APP_ERRORS = [
-    ("ERR_SYNC_QUOTA", "Sync paused: storage limit reached",
-     "The workspace used every byte of its plan allowance, including trash and version history.",
-     "Empty trash, reduce version retention, archive finished projects, or upgrade. Sync resumes on its own within minutes of dropping below the limit."),
-    ("ERR_SYNC_LOCKED", "Sync paused: file locked by another application",
-     "Another program holds an exclusive lock on the file - Office and Adobe applications do this while a document is open.",
-     "Close the application holding the file. The transfer resumes within a minute without any further action."),
-    ("ERR_PATH_TOO_LONG", "Path exceeds the operating system limit",
-     "The full path is longer than 260 characters, which Windows rejects.",
-     "Shorten a parent folder name, or move the folder closer to the drive root. Enabling long path support in Windows also works but needs a policy change."),
-    ("ERR_INVALID_CHARS", "File name contains unsupported characters",
-     "The name contains one of \\\\ / : * ? \" < > |, which at least one supported platform refuses.",
-     "Rename the file. Until you do, the rest of that folder's queue stays blocked behind it."),
-    ("ERR_WORKSPACE_READONLY", "Workspace is read-only",
-     "Billing lapsed past the 14 day grace period, or an admin suspended writes deliberately.",
-     "Settle the outstanding invoice under Settings > Billing. Write access returns within a minute of a successful charge."),
-    ("ERR_SEAT_LIMIT", "No seats available",
-     "Every seat on the plan is taken by an active member or a pending invitation.",
-     "Remove a member, revoke an unaccepted invitation, or add seats under Settings > Billing."),
-    ("ERR_FILE_TOO_LARGE", "File exceeds the maximum size for this plan",
-     "The single-file limit is a hard per-plan ceiling checked before the upload starts.",
-     "Split the file, compress it, or upgrade. Nothing is uploaded partially - the file is refused outright."),
-    ("ERR_VIRUS_DETECTED", "Upload blocked by malware scanning",
-     "Our scanner matched a known malware signature in the file.",
-     "The upload is refused and the file quarantined. If you believe it is a false positive, contact support with the file name and the time - do not retry, the result will be identical."),
-    ("ERR_SSO_REQUIRED", "Password sign-in disabled for this domain",
-     "An admin enforced SAML SSO, which disables password login for the whole email domain.",
-     "Use **Continue with SSO**, or reach the workspace through your identity provider's app tile."),
-    ("ERR_DEVICE_PENDING", "Device awaiting approval",
-     "Device approval is enabled and an admin has not yet approved this device.",
-     "Ask a workspace admin to approve it under Settings > Security > Devices. You receive an email when it is approved."),
-    ("ERR_IP_BLOCKED", "Access denied from this network",
-     "The workspace has an IP allowlist and your current address is not on it.",
-     "Connect through the corporate VPN, or ask an admin to add your CIDR range. API keys are subject to the same list."),
-    ("ERR_LINK_EXPIRED", "This share link has expired",
-     "The link reached its expiry date, or the file moved workspace, which invalidates links.",
-     "Ask the sender to generate a fresh link. Expiry cannot be extended on an existing link."),
-    ("ERR_LINK_PASSWORD", "Incorrect share link password",
-     "The password on the share link does not match.",
-     "Passwords are case-sensitive and are not recoverable - the sender must reset it or issue a new link."),
-    ("ERR_DOMAIN_RESTRICTED", "Share link restricted to approved domains",
-     "An admin limited share links to specific email domains and the recipient's address is outside them.",
-     "Share with the person by email instead, or ask an admin to add the recipient's domain under Settings > Security."),
-    ("ERR_PROJECT_ARCHIVED", "Project is archived and read-only",
-     "Archived projects are deliberately frozen to halve their storage cost.",
-     "Unarchive it from the project menu. Unarchiving is instant and restores full write access."),
-    ("ERR_VERSION_CONFLICT", "This file changed since you opened it",
-     "Someone else saved the file while you had it open.",
-     "Reload and reapply your change, or save yours as a copy. Both versions are always preserved - nothing is silently overwritten."),
-    ("ERR_TRASH_EXPIRED", "Item is no longer recoverable",
-     "The file has been in trash for more than 30 days and has been purged.",
-     "Check whether an earlier version survives elsewhere, or whether the file exists on a device that was offline. Beyond 35 days it is gone from backups too."),
-    ("ERR_EXPORT_IN_PROGRESS", "An export is already running",
-     "Only one export job runs per workspace at a time.",
-     "Wait for the running export to finish; you receive an email with the download link. Large workspaces take several hours."),
-    ("ERR_INTEGRATION_TOKEN", "Integration credentials expired",
-     "The OAuth grant was revoked, or the authorising user lost access in the third-party tool.",
-     "Reconnect the integration under Settings > Integrations. Use a service account so staff turnover does not break it again."),
-    ("ERR_INDEX_PENDING", "File not yet searchable",
-     "Indexing runs a few minutes behind upload, and longer for very large files.",
-     "Wait five minutes and search again. Search by filename works immediately."),
-    ("ERR_MFA_REQUIRED", "Multi-factor authentication required",
-     "An admin requires MFA for all members and yours is not enrolled.",
-     "Enrol under Settings > Security > Two-factor authentication. New members get a seven day grace period."),
-    ("ERR_RATE_LIMITED_UI", "Too many requests - slow down",
-     "An unusual burst of actions from one session tripped the abuse protection.",
-     "Wait 60 seconds. If a script is driving the web app, move it to the API, which has documented, higher limits."),
-    ("ERR_UNSUPPORTED_BROWSER", "This browser is not supported",
-     "The web app needs a browser released within roughly the last two years.",
-     "Update to a current Chrome, Edge, Firefox or Safari. Internet Explorer is not supported at all."),
-    ("ERR_CLOCK_SKEW", "Device clock is out of sync",
-     "The device clock differs from real time by more than 30 seconds, which breaks TOTP codes and request signing.",
-     "Enable automatic time synchronisation in the operating system's date and time settings, then retry."),
-    ("ERR_DISK_FULL", "Not enough local disk space",
-     "The sync folder's drive has less free space than the pending download needs.",
-     "Free space, move the sync folder to a larger drive, or use selective sync to exclude folders you do not need locally."),
+    (
+        "ERR_SYNC_QUOTA",
+        "Sync paused: storage limit reached",
+        "The workspace used every byte of its plan allowance, including trash and version history.",
+        "Empty trash, reduce version retention, archive finished projects, or upgrade. Sync resumes on its own within minutes of dropping below the limit.",
+    ),
+    (
+        "ERR_SYNC_LOCKED",
+        "Sync paused: file locked by another application",
+        "Another program holds an exclusive lock on the file - Office and Adobe applications do this while a document is open.",
+        "Close the application holding the file. The transfer resumes within a minute without any further action.",
+    ),
+    (
+        "ERR_PATH_TOO_LONG",
+        "Path exceeds the operating system limit",
+        "The full path is longer than 260 characters, which Windows rejects.",
+        "Shorten a parent folder name, or move the folder closer to the drive root. Enabling long path support in Windows also works but needs a policy change.",
+    ),
+    (
+        "ERR_INVALID_CHARS",
+        "File name contains unsupported characters",
+        'The name contains one of \\\\ / : * ? " < > |, which at least one supported platform refuses.',
+        "Rename the file. Until you do, the rest of that folder's queue stays blocked behind it.",
+    ),
+    (
+        "ERR_WORKSPACE_READONLY",
+        "Workspace is read-only",
+        "Billing lapsed past the 14 day grace period, or an admin suspended writes deliberately.",
+        "Settle the outstanding invoice under Settings > Billing. Write access returns within a minute of a successful charge.",
+    ),
+    (
+        "ERR_SEAT_LIMIT",
+        "No seats available",
+        "Every seat on the plan is taken by an active member or a pending invitation.",
+        "Remove a member, revoke an unaccepted invitation, or add seats under Settings > Billing.",
+    ),
+    (
+        "ERR_FILE_TOO_LARGE",
+        "File exceeds the maximum size for this plan",
+        "The single-file limit is a hard per-plan ceiling checked before the upload starts.",
+        "Split the file, compress it, or upgrade. Nothing is uploaded partially - the file is refused outright.",
+    ),
+    (
+        "ERR_VIRUS_DETECTED",
+        "Upload blocked by malware scanning",
+        "Our scanner matched a known malware signature in the file.",
+        "The upload is refused and the file quarantined. If you believe it is a false positive, contact support with the file name and the time - do not retry, the result will be identical.",
+    ),
+    (
+        "ERR_SSO_REQUIRED",
+        "Password sign-in disabled for this domain",
+        "An admin enforced SAML SSO, which disables password login for the whole email domain.",
+        "Use **Continue with SSO**, or reach the workspace through your identity provider's app tile.",
+    ),
+    (
+        "ERR_DEVICE_PENDING",
+        "Device awaiting approval",
+        "Device approval is enabled and an admin has not yet approved this device.",
+        "Ask a workspace admin to approve it under Settings > Security > Devices. You receive an email when it is approved.",
+    ),
+    (
+        "ERR_IP_BLOCKED",
+        "Access denied from this network",
+        "The workspace has an IP allowlist and your current address is not on it.",
+        "Connect through the corporate VPN, or ask an admin to add your CIDR range. API keys are subject to the same list.",
+    ),
+    (
+        "ERR_LINK_EXPIRED",
+        "This share link has expired",
+        "The link reached its expiry date, or the file moved workspace, which invalidates links.",
+        "Ask the sender to generate a fresh link. Expiry cannot be extended on an existing link.",
+    ),
+    (
+        "ERR_LINK_PASSWORD",
+        "Incorrect share link password",
+        "The password on the share link does not match.",
+        "Passwords are case-sensitive and are not recoverable - the sender must reset it or issue a new link.",
+    ),
+    (
+        "ERR_DOMAIN_RESTRICTED",
+        "Share link restricted to approved domains",
+        "An admin limited share links to specific email domains and the recipient's address is outside them.",
+        "Share with the person by email instead, or ask an admin to add the recipient's domain under Settings > Security.",
+    ),
+    (
+        "ERR_PROJECT_ARCHIVED",
+        "Project is archived and read-only",
+        "Archived projects are deliberately frozen to halve their storage cost.",
+        "Unarchive it from the project menu. Unarchiving is instant and restores full write access.",
+    ),
+    (
+        "ERR_VERSION_CONFLICT",
+        "This file changed since you opened it",
+        "Someone else saved the file while you had it open.",
+        "Reload and reapply your change, or save yours as a copy. Both versions are always preserved - nothing is silently overwritten.",
+    ),
+    (
+        "ERR_TRASH_EXPIRED",
+        "Item is no longer recoverable",
+        "The file has been in trash for more than 30 days and has been purged.",
+        "Check whether an earlier version survives elsewhere, or whether the file exists on a device that was offline. Beyond 35 days it is gone from backups too.",
+    ),
+    (
+        "ERR_EXPORT_IN_PROGRESS",
+        "An export is already running",
+        "Only one export job runs per workspace at a time.",
+        "Wait for the running export to finish; you receive an email with the download link. Large workspaces take several hours.",
+    ),
+    (
+        "ERR_INTEGRATION_TOKEN",
+        "Integration credentials expired",
+        "The OAuth grant was revoked, or the authorising user lost access in the third-party tool.",
+        "Reconnect the integration under Settings > Integrations. Use a service account so staff turnover does not break it again.",
+    ),
+    (
+        "ERR_INDEX_PENDING",
+        "File not yet searchable",
+        "Indexing runs a few minutes behind upload, and longer for very large files.",
+        "Wait five minutes and search again. Search by filename works immediately.",
+    ),
+    (
+        "ERR_MFA_REQUIRED",
+        "Multi-factor authentication required",
+        "An admin requires MFA for all members and yours is not enrolled.",
+        "Enrol under Settings > Security > Two-factor authentication. New members get a seven day grace period.",
+    ),
+    (
+        "ERR_RATE_LIMITED_UI",
+        "Too many requests - slow down",
+        "An unusual burst of actions from one session tripped the abuse protection.",
+        "Wait 60 seconds. If a script is driving the web app, move it to the API, which has documented, higher limits.",
+    ),
+    (
+        "ERR_UNSUPPORTED_BROWSER",
+        "This browser is not supported",
+        "The web app needs a browser released within roughly the last two years.",
+        "Update to a current Chrome, Edge, Firefox or Safari. Internet Explorer is not supported at all.",
+    ),
+    (
+        "ERR_CLOCK_SKEW",
+        "Device clock is out of sync",
+        "The device clock differs from real time by more than 30 seconds, which breaks TOTP codes and request signing.",
+        "Enable automatic time synchronisation in the operating system's date and time settings, then retry.",
+    ),
+    (
+        "ERR_DISK_FULL",
+        "Not enough local disk space",
+        "The sync folder's drive has less free space than the pending download needs.",
+        "Free space, move the sync folder to a larger drive, or use selective sync to exclude folders you do not need locally.",
+    ),
 ]
 
 API_ENDPOINTS = [
-    ("list-workspaces", "List workspaces", "GET", "/v1/workspaces", "workspaces:read",
-     "Returns every workspace the key can access, newest first."),
-    ("create-workspace", "Create a workspace", "POST", "/v1/workspaces", "workspaces:write",
-     "Creates a workspace and makes the calling user its owner."),
-    ("list-projects", "List projects", "GET", "/v1/projects", "projects:read",
-     "Supports `workspace_id`, `status` and `updated_since` filters."),
-    ("create-project", "Create a project", "POST", "/v1/projects", "projects:write",
-     "Requires `name` and `workspace_id`."),
-    ("update-project", "Update a project", "PATCH", "/v1/projects/{id}", "projects:write",
-     "Partial update; send only the fields you are changing plus `version`."),
-    ("delete-project", "Delete a project", "DELETE", "/v1/projects/{id}", "projects:write",
-     "Soft-deletes for 30 days, after which the data is unrecoverable."),
-    ("list-files", "List files", "GET", "/v1/files", "files:read",
-     "Cursor-paginated; follow `next_cursor` until it is null."),
-    ("upload-file", "Upload a file", "POST", "/v1/files", "files:write",
-     "Multipart upload. Files above 10 MB must use the resumable session endpoint."),
-    ("download-file", "Download a file", "GET", "/v1/files/{id}/content", "files:read",
-     "Returns a 302 to a signed URL valid for 15 minutes."),
-    ("create-share-link", "Create a share link", "POST", "/v1/files/{id}/links", "files:share",
-     "Optional `expires_at` and `password` fields."),
-    ("list-members", "List workspace members", "GET", "/v1/members", "members:read",
-     "Includes seat status, role and last-active timestamp."),
-    ("invite-member", "Invite a member", "POST", "/v1/members", "members:write",
-     "Consumes a seat immediately on Team and Business plans."),
-    ("remove-member", "Remove a member", "DELETE", "/v1/members/{id}", "members:write",
-     "Frees the seat at the end of the current billing period."),
-    ("list-webhooks", "List webhook endpoints", "GET", "/v1/webhooks", "webhooks:read",
-     "Shows the last delivery status for each endpoint."),
-    ("create-webhook", "Register a webhook", "POST", "/v1/webhooks", "webhooks:write",
-     "Returns a signing secret shown exactly once."),
-    ("replay-webhook", "Replay a webhook delivery", "POST", "/v1/webhooks/{id}/replay", "webhooks:write",
-     "Re-sends the stored payload; useful after fixing a receiver bug."),
-    ("list-events", "List audit events", "GET", "/v1/events", "audit:read",
-     "Business and Enterprise plans retain 12 months of events."),
-    ("export-data", "Start a data export", "POST", "/v1/exports", "workspace:export",
-     "Asynchronous; poll the returned job id or wait for the `export.completed` webhook."),
-    ("usage-summary", "Fetch usage", "GET", "/v1/usage", "billing:read",
-     "Daily granularity for the current billing period."),
-    ("rotate-key", "Rotate an API key", "POST", "/v1/keys/{id}/rotate", "keys:write",
-     "Issues a new secret and keeps the old one valid for a 24 hour overlap."),
-    ("search", "Search content", "GET", "/v1/search", "files:read",
-     "Full-text and filename search. Supports `q`, `project_id`, `type` and `updated_since`."),
-    ("get-file", "Fetch file metadata", "GET", "/v1/files/{id}", "files:read",
-     "Metadata only; use the content endpoint for bytes."),
-    ("move-file", "Move or rename a file", "PATCH", "/v1/files/{id}", "files:write",
-     "Changing `parent_id` moves it; changing `name` renames it. Share links survive both."),
-    ("copy-file", "Copy a file", "POST", "/v1/files/{id}/copy", "files:write",
-     "Copies within or across projects in the same workspace."),
-    ("list-versions", "List file versions", "GET", "/v1/files/{id}/versions", "files:read",
-     "Newest first; retention depends on the plan."),
-    ("restore-version", "Restore a file version", "POST", "/v1/files/{id}/versions/{version}/restore", "files:write",
-     "Creates a new version from the old content rather than rewriting history."),
-    ("list-comments", "List comments", "GET", "/v1/files/{id}/comments", "comments:read",
-     "Threaded; each comment carries `parent_id` where it is a reply."),
-    ("create-comment", "Post a comment", "POST", "/v1/files/{id}/comments", "comments:write",
-     "Mentions use `@[user_id]` and trigger a notification."),
-    ("list-trash", "List trashed items", "GET", "/v1/trash", "files:read",
-     "Items older than 30 days are absent - they have been purged."),
-    ("restore-trash", "Restore from trash", "POST", "/v1/trash/{id}/restore", "files:write",
-     "Restores to the original location, recreating parent folders if needed."),
-    ("empty-trash", "Empty trash", "DELETE", "/v1/trash", "files:write",
-     "Irreversible. Frees quota immediately."),
-    ("archive-project", "Archive a project", "POST", "/v1/projects/{id}/archive", "projects:write",
-     "Makes the project read-only and roughly halves its storage footprint."),
-    ("list-invites", "List pending invitations", "GET", "/v1/invites", "members:read",
-     "Pending invitations consume seats, so reconcile this against your seat count."),
-    ("revoke-invite", "Revoke an invitation", "DELETE", "/v1/invites/{id}", "members:write",
-     "Frees the seat immediately, unlike removing an active member."),
-    ("list-keys", "List API keys", "GET", "/v1/keys", "keys:read",
-     "Shows scopes, creation date and last use. Secrets are never returned."),
-    ("create-key", "Create an API key", "POST", "/v1/keys", "keys:write",
-     "The secret is returned exactly once - store it immediately."),
-    ("revoke-key", "Revoke an API key", "DELETE", "/v1/keys/{id}", "keys:write",
-     "Takes effect within seconds across every region."),
-    ("list-integrations", "List integrations", "GET", "/v1/integrations", "integrations:read",
-     "Includes connection status and last sync time for each."),
-    ("verify-webhook", "Verify a webhook signature", "POST", "/v1/webhooks/{id}/test", "webhooks:read",
-     "Sends a signed test payload so you can validate your verification code."),
-    ("whoami", "Identify the calling key", "GET", "/v1/whoami", "",
-     "Returns the workspace, scopes and rate limit for the key. Needs no scope - useful as a first call when debugging auth."),
+    (
+        "list-workspaces",
+        "List workspaces",
+        "GET",
+        "/v1/workspaces",
+        "workspaces:read",
+        "Returns every workspace the key can access, newest first.",
+    ),
+    (
+        "create-workspace",
+        "Create a workspace",
+        "POST",
+        "/v1/workspaces",
+        "workspaces:write",
+        "Creates a workspace and makes the calling user its owner.",
+    ),
+    (
+        "list-projects",
+        "List projects",
+        "GET",
+        "/v1/projects",
+        "projects:read",
+        "Supports `workspace_id`, `status` and `updated_since` filters.",
+    ),
+    (
+        "create-project",
+        "Create a project",
+        "POST",
+        "/v1/projects",
+        "projects:write",
+        "Requires `name` and `workspace_id`.",
+    ),
+    (
+        "update-project",
+        "Update a project",
+        "PATCH",
+        "/v1/projects/{id}",
+        "projects:write",
+        "Partial update; send only the fields you are changing plus `version`.",
+    ),
+    (
+        "delete-project",
+        "Delete a project",
+        "DELETE",
+        "/v1/projects/{id}",
+        "projects:write",
+        "Soft-deletes for 30 days, after which the data is unrecoverable.",
+    ),
+    (
+        "list-files",
+        "List files",
+        "GET",
+        "/v1/files",
+        "files:read",
+        "Cursor-paginated; follow `next_cursor` until it is null.",
+    ),
+    (
+        "upload-file",
+        "Upload a file",
+        "POST",
+        "/v1/files",
+        "files:write",
+        "Multipart upload. Files above 10 MB must use the resumable session endpoint.",
+    ),
+    (
+        "download-file",
+        "Download a file",
+        "GET",
+        "/v1/files/{id}/content",
+        "files:read",
+        "Returns a 302 to a signed URL valid for 15 minutes.",
+    ),
+    (
+        "create-share-link",
+        "Create a share link",
+        "POST",
+        "/v1/files/{id}/links",
+        "files:share",
+        "Optional `expires_at` and `password` fields.",
+    ),
+    (
+        "list-members",
+        "List workspace members",
+        "GET",
+        "/v1/members",
+        "members:read",
+        "Includes seat status, role and last-active timestamp.",
+    ),
+    (
+        "invite-member",
+        "Invite a member",
+        "POST",
+        "/v1/members",
+        "members:write",
+        "Consumes a seat immediately on Team and Business plans.",
+    ),
+    (
+        "remove-member",
+        "Remove a member",
+        "DELETE",
+        "/v1/members/{id}",
+        "members:write",
+        "Frees the seat at the end of the current billing period.",
+    ),
+    (
+        "list-webhooks",
+        "List webhook endpoints",
+        "GET",
+        "/v1/webhooks",
+        "webhooks:read",
+        "Shows the last delivery status for each endpoint.",
+    ),
+    (
+        "create-webhook",
+        "Register a webhook",
+        "POST",
+        "/v1/webhooks",
+        "webhooks:write",
+        "Returns a signing secret shown exactly once.",
+    ),
+    (
+        "replay-webhook",
+        "Replay a webhook delivery",
+        "POST",
+        "/v1/webhooks/{id}/replay",
+        "webhooks:write",
+        "Re-sends the stored payload; useful after fixing a receiver bug.",
+    ),
+    (
+        "list-events",
+        "List audit events",
+        "GET",
+        "/v1/events",
+        "audit:read",
+        "Business and Enterprise plans retain 12 months of events.",
+    ),
+    (
+        "export-data",
+        "Start a data export",
+        "POST",
+        "/v1/exports",
+        "workspace:export",
+        "Asynchronous; poll the returned job id or wait for the `export.completed` webhook.",
+    ),
+    (
+        "usage-summary",
+        "Fetch usage",
+        "GET",
+        "/v1/usage",
+        "billing:read",
+        "Daily granularity for the current billing period.",
+    ),
+    (
+        "rotate-key",
+        "Rotate an API key",
+        "POST",
+        "/v1/keys/{id}/rotate",
+        "keys:write",
+        "Issues a new secret and keeps the old one valid for a 24 hour overlap.",
+    ),
+    (
+        "search",
+        "Search content",
+        "GET",
+        "/v1/search",
+        "files:read",
+        "Full-text and filename search. Supports `q`, `project_id`, `type` and `updated_since`.",
+    ),
+    (
+        "get-file",
+        "Fetch file metadata",
+        "GET",
+        "/v1/files/{id}",
+        "files:read",
+        "Metadata only; use the content endpoint for bytes.",
+    ),
+    (
+        "move-file",
+        "Move or rename a file",
+        "PATCH",
+        "/v1/files/{id}",
+        "files:write",
+        "Changing `parent_id` moves it; changing `name` renames it. Share links survive both.",
+    ),
+    (
+        "copy-file",
+        "Copy a file",
+        "POST",
+        "/v1/files/{id}/copy",
+        "files:write",
+        "Copies within or across projects in the same workspace.",
+    ),
+    (
+        "list-versions",
+        "List file versions",
+        "GET",
+        "/v1/files/{id}/versions",
+        "files:read",
+        "Newest first; retention depends on the plan.",
+    ),
+    (
+        "restore-version",
+        "Restore a file version",
+        "POST",
+        "/v1/files/{id}/versions/{version}/restore",
+        "files:write",
+        "Creates a new version from the old content rather than rewriting history.",
+    ),
+    (
+        "list-comments",
+        "List comments",
+        "GET",
+        "/v1/files/{id}/comments",
+        "comments:read",
+        "Threaded; each comment carries `parent_id` where it is a reply.",
+    ),
+    (
+        "create-comment",
+        "Post a comment",
+        "POST",
+        "/v1/files/{id}/comments",
+        "comments:write",
+        "Mentions use `@[user_id]` and trigger a notification.",
+    ),
+    (
+        "list-trash",
+        "List trashed items",
+        "GET",
+        "/v1/trash",
+        "files:read",
+        "Items older than 30 days are absent - they have been purged.",
+    ),
+    (
+        "restore-trash",
+        "Restore from trash",
+        "POST",
+        "/v1/trash/{id}/restore",
+        "files:write",
+        "Restores to the original location, recreating parent folders if needed.",
+    ),
+    (
+        "empty-trash",
+        "Empty trash",
+        "DELETE",
+        "/v1/trash",
+        "files:write",
+        "Irreversible. Frees quota immediately.",
+    ),
+    (
+        "archive-project",
+        "Archive a project",
+        "POST",
+        "/v1/projects/{id}/archive",
+        "projects:write",
+        "Makes the project read-only and roughly halves its storage footprint.",
+    ),
+    (
+        "list-invites",
+        "List pending invitations",
+        "GET",
+        "/v1/invites",
+        "members:read",
+        "Pending invitations consume seats, so reconcile this against your seat count.",
+    ),
+    (
+        "revoke-invite",
+        "Revoke an invitation",
+        "DELETE",
+        "/v1/invites/{id}",
+        "members:write",
+        "Frees the seat immediately, unlike removing an active member.",
+    ),
+    (
+        "list-keys",
+        "List API keys",
+        "GET",
+        "/v1/keys",
+        "keys:read",
+        "Shows scopes, creation date and last use. Secrets are never returned.",
+    ),
+    (
+        "create-key",
+        "Create an API key",
+        "POST",
+        "/v1/keys",
+        "keys:write",
+        "The secret is returned exactly once - store it immediately.",
+    ),
+    (
+        "revoke-key",
+        "Revoke an API key",
+        "DELETE",
+        "/v1/keys/{id}",
+        "keys:write",
+        "Takes effect within seconds across every region.",
+    ),
+    (
+        "list-integrations",
+        "List integrations",
+        "GET",
+        "/v1/integrations",
+        "integrations:read",
+        "Includes connection status and last sync time for each.",
+    ),
+    (
+        "verify-webhook",
+        "Verify a webhook signature",
+        "POST",
+        "/v1/webhooks/{id}/test",
+        "webhooks:read",
+        "Sends a signed test payload so you can validate your verification code.",
+    ),
+    (
+        "whoami",
+        "Identify the calling key",
+        "GET",
+        "/v1/whoami",
+        "",
+        "Returns the workspace, scopes and rate limit for the key. Needs no scope - useful as a first call when debugging auth.",
+    ),
 ]
 
 WORKFLOWS = [
-    ("onboard-new-hire", "Onboard a new team member",
-     ["Invite them at Settings > Members with the **member** role; use **guest** for contractors.",
-      "Add them to the projects they need. Members see all projects, so guests are the right choice for narrow access.",
-      "Ask them to enrol in MFA on day one - workspace-wide enforcement gives new members only seven days.",
-      "Point them at the getting-started articles: install, invite, organise, share."],
-     "They can sign in, see the expected projects, and appear as Active in Settings > Members."),
-    ("offboard-departing-member", "Offboard someone who is leaving",
-     ["Transfer ownership of anything they solely own - projects and, critically, the workspace itself.",
-      "Reassign their integrations; personal OAuth grants break the moment their account goes.",
-      "Remove them from Settings > Members. Their files stay; only access is removed.",
-      "Revoke API keys they created under Settings > Developers.",
-      "Check Settings > Security > Active sessions to confirm nothing remains signed in."],
-     "The audit log records the removal and no sessions or keys remain for that account."),
-    ("quarterly-access-review", "Run a quarterly access review",
-     ["Export the member list and roles from Settings > Members.",
-      "Question every admin - admin is the role that accumulates without anyone noticing.",
-      "Review guests: contractors whose engagement ended should be removed, not downgraded.",
-      "Review API keys by last-used date and revoke anything idle for 90 days.",
-      "Review share links with no expiry under Settings > Security > Share links."],
-     "Every remaining admin, guest, key and public link has a current business reason."),
-    ("prepare-for-audit", "Prepare evidence for a security audit",
-     ["Export the audit log for the period under Settings > Security > Audit log.",
-      "Request the SOC 2 Type II report and ISO 27001 certificate from support - both are available under NDA.",
-      "Download the DPA with standard contractual clauses from Settings > Legal.",
-      "Screenshot the security configuration: MFA enforcement, session policy, IP allowlist, SSO.",
-      "Where the auditor needs continuous evidence, Enterprise workspaces can stream audit events to a SIEM."],
-     "The auditor has the log export, the certifications, the DPA and the configuration evidence."),
-    ("migrate-from-competitor", "Migrate from another storage provider",
-     ["Settings > **Import** and pick the source: Dropbox, Google Drive, Box or OneDrive.",
-      "Authorise the source account. Use an admin account so the whole shared drive is visible.",
-      "Map source folders onto Acme Cloud projects before starting - remapping afterwards means moving data.",
-      "Run a pilot with one folder and check that sharing and folder structure survived.",
-      "Schedule the full migration for a quiet period; multi-terabyte imports take hours.",
-      "Keep the source read-only for two weeks so nothing is lost to an edit made in the wrong place."],
-     "File counts and total size match the source, and a sample of shares resolves correctly."),
-    ("set-up-for-compliance", "Configure a workspace for a regulated environment",
-     ["Enforce SAML SSO and require MFA at the identity provider.",
-      "Set a session policy of one business day or shorter, with re-authentication for billing and export.",
-      "Enable device approval so unknown devices are held pending.",
-      "Restrict share links to approved domains and require an expiry.",
-      "Turn on the IP allowlist last, and add your own address first.",
-      "Enable audit log streaming to your SIEM."],
-     "A test account from an unapproved device and network is refused at every step."),
-    ("reduce-storage-costs", "Reduce storage usage without deleting work",
-     ["Settings > Usage and sort projects by size - the top three usually account for most of it.",
-      "Empty trash; deleted files count against quota for their full 30 days.",
-      "Lower version retention from the default 100 versions per file.",
-      "Archive finished projects, which compresses them to roughly half.",
-      "Exclude build artefacts and dependency directories from sync entirely."],
-     "Settings > Usage shows a materially lower figure and sync is no longer paused."),
-    ("respond-to-incident", "Respond to a suspected account compromise",
-     ["Settings > Security > **Active sessions** > Sign out everywhere, immediately.",
-      "Change the password, or force a reset from the identity provider if SSO is in use.",
-      "Revoke and reissue every API key the account created.",
-      "Read the audit log for the period: look for share links created, exports started and integrations added.",
-      "Revoke any share link you do not recognise.",
-      "Tell security@acme.example with the timeframe so we can check server-side."],
-     "No unexpected sessions, keys, links or exports remain, and the audit log is clear from the containment point onward."),
-    ("plan-a-large-rollout", "Roll out to a large organisation",
-     ["Start with one pilot team of 10-20 people for two weeks.",
-      "Configure SSO and SCIM before widening - retrofitting identity onto existing accounts is far more work.",
-      "Agree a project naming convention up front; it is the thing organisations most regret not doing.",
-      "Roll out department by department, not all at once, so support load stays manageable.",
-      "Schedule the bulk import for a weekend and verify counts before announcing."],
-     "Each department reaches steady state before the next begins."),
-    ("handle-storage-emergency", "Recover when sync has stopped for everyone",
-     ["Check the status page first - a regional incident looks exactly like a local failure.",
-      "Check Settings > Usage for a quota wall and Settings > Billing for a lapsed payment; both pause sync workspace-wide.",
-      "If neither applies, have one user pause and resume sync to confirm it is not client-side.",
-      "Collect the request id from any error shown and contact support - a workspace-wide sync halt is a Sev-2 for us."],
-     "Sync resumes for the test user, then for everyone within a few minutes."),
+    (
+        "onboard-new-hire",
+        "Onboard a new team member",
+        [
+            "Invite them at Settings > Members with the **member** role; use **guest** for contractors.",
+            "Add them to the projects they need. Members see all projects, so guests are the right choice for narrow access.",
+            "Ask them to enrol in MFA on day one - workspace-wide enforcement gives new members only seven days.",
+            "Point them at the getting-started articles: install, invite, organise, share.",
+        ],
+        "They can sign in, see the expected projects, and appear as Active in Settings > Members.",
+    ),
+    (
+        "offboard-departing-member",
+        "Offboard someone who is leaving",
+        [
+            "Transfer ownership of anything they solely own - projects and, critically, the workspace itself.",
+            "Reassign their integrations; personal OAuth grants break the moment their account goes.",
+            "Remove them from Settings > Members. Their files stay; only access is removed.",
+            "Revoke API keys they created under Settings > Developers.",
+            "Check Settings > Security > Active sessions to confirm nothing remains signed in.",
+        ],
+        "The audit log records the removal and no sessions or keys remain for that account.",
+    ),
+    (
+        "quarterly-access-review",
+        "Run a quarterly access review",
+        [
+            "Export the member list and roles from Settings > Members.",
+            "Question every admin - admin is the role that accumulates without anyone noticing.",
+            "Review guests: contractors whose engagement ended should be removed, not downgraded.",
+            "Review API keys by last-used date and revoke anything idle for 90 days.",
+            "Review share links with no expiry under Settings > Security > Share links.",
+        ],
+        "Every remaining admin, guest, key and public link has a current business reason.",
+    ),
+    (
+        "prepare-for-audit",
+        "Prepare evidence for a security audit",
+        [
+            "Export the audit log for the period under Settings > Security > Audit log.",
+            "Request the SOC 2 Type II report and ISO 27001 certificate from support - both are available under NDA.",
+            "Download the DPA with standard contractual clauses from Settings > Legal.",
+            "Screenshot the security configuration: MFA enforcement, session policy, IP allowlist, SSO.",
+            "Where the auditor needs continuous evidence, Enterprise workspaces can stream audit events to a SIEM.",
+        ],
+        "The auditor has the log export, the certifications, the DPA and the configuration evidence.",
+    ),
+    (
+        "migrate-from-competitor",
+        "Migrate from another storage provider",
+        [
+            "Settings > **Import** and pick the source: Dropbox, Google Drive, Box or OneDrive.",
+            "Authorise the source account. Use an admin account so the whole shared drive is visible.",
+            "Map source folders onto Acme Cloud projects before starting - remapping afterwards means moving data.",
+            "Run a pilot with one folder and check that sharing and folder structure survived.",
+            "Schedule the full migration for a quiet period; multi-terabyte imports take hours.",
+            "Keep the source read-only for two weeks so nothing is lost to an edit made in the wrong place.",
+        ],
+        "File counts and total size match the source, and a sample of shares resolves correctly.",
+    ),
+    (
+        "set-up-for-compliance",
+        "Configure a workspace for a regulated environment",
+        [
+            "Enforce SAML SSO and require MFA at the identity provider.",
+            "Set a session policy of one business day or shorter, with re-authentication for billing and export.",
+            "Enable device approval so unknown devices are held pending.",
+            "Restrict share links to approved domains and require an expiry.",
+            "Turn on the IP allowlist last, and add your own address first.",
+            "Enable audit log streaming to your SIEM.",
+        ],
+        "A test account from an unapproved device and network is refused at every step.",
+    ),
+    (
+        "reduce-storage-costs",
+        "Reduce storage usage without deleting work",
+        [
+            "Settings > Usage and sort projects by size - the top three usually account for most of it.",
+            "Empty trash; deleted files count against quota for their full 30 days.",
+            "Lower version retention from the default 100 versions per file.",
+            "Archive finished projects, which compresses them to roughly half.",
+            "Exclude build artefacts and dependency directories from sync entirely.",
+        ],
+        "Settings > Usage shows a materially lower figure and sync is no longer paused.",
+    ),
+    (
+        "respond-to-incident",
+        "Respond to a suspected account compromise",
+        [
+            "Settings > Security > **Active sessions** > Sign out everywhere, immediately.",
+            "Change the password, or force a reset from the identity provider if SSO is in use.",
+            "Revoke and reissue every API key the account created.",
+            "Read the audit log for the period: look for share links created, exports started and integrations added.",
+            "Revoke any share link you do not recognise.",
+            "Tell security@acme.example with the timeframe so we can check server-side.",
+        ],
+        "No unexpected sessions, keys, links or exports remain, and the audit log is clear from the containment point onward.",
+    ),
+    (
+        "plan-a-large-rollout",
+        "Roll out to a large organisation",
+        [
+            "Start with one pilot team of 10-20 people for two weeks.",
+            "Configure SSO and SCIM before widening - retrofitting identity onto existing accounts is far more work.",
+            "Agree a project naming convention up front; it is the thing organisations most regret not doing.",
+            "Roll out department by department, not all at once, so support load stays manageable.",
+            "Schedule the bulk import for a weekend and verify counts before announcing.",
+        ],
+        "Each department reaches steady state before the next begins.",
+    ),
+    (
+        "handle-storage-emergency",
+        "Recover when sync has stopped for everyone",
+        [
+            "Check the status page first - a regional incident looks exactly like a local failure.",
+            "Check Settings > Usage for a quota wall and Settings > Billing for a lapsed payment; both pause sync workspace-wide.",
+            "If neither applies, have one user pause and resume sync to confirm it is not client-side.",
+            "Collect the request id from any error shown and contact support - a workspace-wide sync halt is a Sev-2 for us.",
+        ],
+        "Sync resumes for the test user, then for everyone within a few minutes.",
+    ),
 ]
 
 
@@ -522,7 +957,7 @@ agent to approve.
             title="A payment failed - what happens next",
             category="billing",
             tags=["payment", "failed", "card", "dunning", "billing"],
-            body=f"""
+            body="""
 # A payment failed - what happens next
 
 ## The retry schedule
@@ -558,7 +993,7 @@ the charge, or if the same card fails after three different fixes.
             title="Files stuck in Syncing",
             category="troubleshooting",
             tags=["sync", "stuck", "files", "troubleshooting"],
-            body=f"""
+            body="""
 # Files stuck in "Syncing"
 
 ## Symptom
@@ -602,7 +1037,7 @@ server-side index problem.
             title="Cannot sign in although the password is correct",
             category="troubleshooting",
             tags=["login", "signin", "troubleshooting", "account"],
-            body=f"""
+            body="""
 # Cannot sign in although the password is correct
 
 Work through these in order; each is a genuinely different cause.
@@ -1618,8 +2053,7 @@ def _render_scenario(scenario: Scenario, category: str, surface: str) -> Doc:
         doc_id = f"{category}-{scenario.slug}-{surface}"
         title = f"{scenario.title} ({PLATFORM_LABEL[surface]})"
         context = (
-            f"These steps are written for **{PLATFORM_LABEL[surface]}**. "
-            f"{PLATFORM_HINT[surface]}"
+            f"These steps are written for **{PLATFORM_LABEL[surface]}**. {PLATFORM_HINT[surface]}"
         )
         tags = [*scenario.tags, surface]
     elif is_plan:
@@ -1880,11 +2314,47 @@ a grant that failed to revoke.
 def plan_comparison_docs() -> list[Doc]:
     """One article per plan, covering limits and what is included."""
     features = {
-        "free": ["1 seat", "2 GB storage", "250 MB max file", "7 day version history", "community support"],
-        "starter": ["up to 3 seats", "100 GB storage", "2 GB max file", "30 day version history", "email support"],
-        "team": ["up to 25 seats", "1 TB storage", "10 GB max file", "90 day version history", "API access", "1 business day support"],
-        "business": ["up to 200 seats", "5 TB storage", "50 GB max file", "1 year version history", "SAML SSO", "audit log", "4 business hour support"],
-        "enterprise": ["unlimited seats", "custom storage", "250 GB max file", "unlimited version history", "SAML SSO + SCIM", "audit log export", "24x7 Sev-1 support", "custom DPA"],
+        "free": [
+            "1 seat",
+            "2 GB storage",
+            "250 MB max file",
+            "7 day version history",
+            "community support",
+        ],
+        "starter": [
+            "up to 3 seats",
+            "100 GB storage",
+            "2 GB max file",
+            "30 day version history",
+            "email support",
+        ],
+        "team": [
+            "up to 25 seats",
+            "1 TB storage",
+            "10 GB max file",
+            "90 day version history",
+            "API access",
+            "1 business day support",
+        ],
+        "business": [
+            "up to 200 seats",
+            "5 TB storage",
+            "50 GB max file",
+            "1 year version history",
+            "SAML SSO",
+            "audit log",
+            "4 business hour support",
+        ],
+        "enterprise": [
+            "unlimited seats",
+            "custom storage",
+            "250 GB max file",
+            "unlimited version history",
+            "SAML SSO + SCIM",
+            "audit log export",
+            "24x7 Sev-1 support",
+            "custom DPA",
+        ],
     }
     docs = []
     for plan in PLANS:
@@ -1923,68 +2393,94 @@ current period. See the upgrade and downgrade articles for the exact steps.
 def security_docs() -> list[Doc]:
     """Security and compliance articles."""
     topics = [
-        ("encryption", "How data is encrypted",
-         """Data is encrypted in transit with TLS 1.3 (TLS 1.2 accepted for legacy clients;
+        (
+            "encryption",
+            "How data is encrypted",
+            """Data is encrypted in transit with TLS 1.3 (TLS 1.2 accepted for legacy clients;
 SSL and TLS 1.0/1.1 are refused). At rest, content is encrypted with AES-256
 using keys held in a managed KMS and rotated annually.
 
 Enterprise workspaces may supply their own key (BYOK) through AWS KMS or Google
 Cloud KMS. Revoking that key renders the workspace unreadable within minutes -
 which is the point, but it is not reversible, so treat revocation as a break-glass
-action."""),
-        ("access-control", "Who inside Acme can see customer data",
-         """Access to production data requires a named, time-boxed approval and is logged
+action.""",
+        ),
+        (
+            "access-control",
+            "Who inside Acme can see customer data",
+            """Access to production data requires a named, time-boxed approval and is logged
 to an append-only audit trail reviewed monthly. Support staff can see workspace
 and billing metadata by default; reading file *content* requires explicit,
 per-incident customer consent recorded in the ticket.
 
 Engineers have no standing production access. Break-glass access pages the
-security team and expires after four hours."""),
-        ("compliance", "Compliance certifications",
-         """We hold SOC 2 Type II (audited annually, report available under NDA) and
+security team and expires after four hours.""",
+        ),
+        (
+            "compliance",
+            "Compliance certifications",
+            """We hold SOC 2 Type II (audited annually, report available under NDA) and
 ISO 27001. We act as a processor under GDPR and offer a DPA with the standard
 contractual clauses to all paid plans. HIPAA BAAs are available on Enterprise.
 
 PCI scope is limited: card details go directly to our payment processor and never
-touch our servers."""),
-        ("incident-response", "How security incidents are handled",
-         """Suspected incidents are triaged within one hour, 24x7. Confirmed incidents
+touch our servers.""",
+        ),
+        (
+            "incident-response",
+            "How security incidents are handled",
+            """Suspected incidents are triaged within one hour, 24x7. Confirmed incidents
 affecting customer data are notified to affected workspaces within 72 hours, with
 a factual description of what happened, what data was involved, and what we are
 doing about it.
 
 Report a suspected issue to security@acme.example. We do not take legal action
-against good-faith security research that follows our disclosure policy."""),
-        ("audit-log", "Reading the audit log",
-         """Settings > Security > **Audit log** records sign-ins, permission changes,
+against good-faith security research that follows our disclosure policy.""",
+        ),
+        (
+            "audit-log",
+            "Reading the audit log",
+            """Settings > Security > **Audit log** records sign-ins, permission changes,
 share link creation, integration grants and data exports. Each entry has an
 actor, an IP address, a user agent and a timestamp in UTC.
 
 Retention is 12 months on Business and Enterprise, 30 days elsewhere. Enterprise
-workspaces can stream events continuously to an S3 bucket or a SIEM."""),
-        ("ip-allowlist", "Restricting access by IP address",
-         """Enterprise workspaces can allow only named CIDR ranges. Add them under
+workspaces can stream events continuously to an S3 bucket or a SIEM.""",
+        ),
+        (
+            "ip-allowlist",
+            "Restricting access by IP address",
+            """Enterprise workspaces can allow only named CIDR ranges. Add them under
 Settings > Security > **IP allowlist**.
 
 Add your own current address before saving - the rule applies immediately and it
 is entirely possible to lock yourself out. API keys are subject to the same list,
-so remember CI runners and servers, whose egress addresses are easy to forget."""),
-        ("session-policy", "Setting a session timeout",
-         """Business and Enterprise admins can shorten the default 30 day session under
+so remember CI runners and servers, whose egress addresses are easy to forget.""",
+        ),
+        (
+            "session-policy",
+            "Setting a session timeout",
+            """Business and Enterprise admins can shorten the default 30 day session under
 Settings > Security > **Session policy**, to as little as one hour, and can
 require re-authentication for sensitive actions such as changing billing details
 or exporting data.
 
 Shorter sessions trade convenience for containment; one business day is a common
-compromise."""),
-        ("device-approval", "Approving new devices",
-         """With device approval enabled, a sign-in from an unrecognised device is held
+compromise.""",
+        ),
+        (
+            "device-approval",
+            "Approving new devices",
+            """With device approval enabled, a sign-in from an unrecognised device is held
 pending until an admin approves it under Settings > Security > **Devices**.
 
 The user sees a waiting screen and receives an email when approved. Approvals
-last until the device is explicitly revoked."""),
-        ("phishing", "Recognising phishing that imitates Acme Cloud",
-         f"""We never ask for your password, a recovery code or an MFA code - not by email,
+last until the device is explicitly revoked.""",
+        ),
+        (
+            "phishing",
+            "Recognising phishing that imitates Acme Cloud",
+            f"""We never ask for your password, a recovery code or an MFA code - not by email,
 not by phone, not in chat. Any message that does is fraudulent.
 
 Genuine mail comes from `@acme.example` and links only to `acme.example`
@@ -1993,14 +2489,18 @@ character; lookalike domains are the standard technique.
 
 Forward suspicious messages to security@acme.example and then delete them. If
 you entered credentials somewhere suspicious, change your password immediately
-and sign out all sessions from Settings > Security, then tell {SUPPORT_EMAIL}."""),
-        ("pentest", "Penetration testing your own workspace",
-         """Customers may test their own workspace without prior approval, subject to the
+and sign out all sessions from Settings > Security, then tell {SUPPORT_EMAIL}.""",
+        ),
+        (
+            "pentest",
+            "Penetration testing your own workspace",
+            """Customers may test their own workspace without prior approval, subject to the
 rules of engagement at acme.example/security/testing: no denial of service, no
 testing against other tenants, and no social engineering of our staff.
 
 Share findings with security@acme.example. Include the request id where you have
-one - it makes reproduction far quicker."""),
+one - it makes reproduction far quicker.""",
+        ),
     ]
     return [
         Doc(
@@ -2017,8 +2517,10 @@ one - it makes reproduction far quicker."""),
 def policy_docs() -> list[Doc]:
     """Customer-facing policies the agent must quote rather than improvise."""
     topics = [
-        ("acceptable-use", "Acceptable use policy",
-         """Acme Cloud may not be used to store or distribute malware, child sexual abuse
+        (
+            "acceptable-use",
+            "Acceptable use policy",
+            """Acme Cloud may not be used to store or distribute malware, child sexual abuse
 material, content that infringes copyright, or material that violates applicable
 law. We act on reports at abuse@acme.example.
 
@@ -2027,60 +2529,82 @@ limits, and reselling storage capacity are all prohibited and are grounds for
 suspension.
 
 Enforcement is graduated: notice, then restriction, then suspension. Content that
-is illegal on its face is removed immediately and without notice."""),
-        ("fair-use-bandwidth", "Fair use limits on bandwidth",
-         """Unlimited plans carry a fair use ceiling of 2 TB of egress per seat per month.
+is illegal on its face is removed immediately and without notice.""",
+        ),
+        (
+            "fair-use-bandwidth",
+            "Fair use limits on bandwidth",
+            """Unlimited plans carry a fair use ceiling of 2 TB of egress per seat per month.
 Crossing it triggers a notice, not a cut-off; sustained overage is discussed with
 the account owner and may require a plan change.
 
 Share link traffic counts toward the workspace that owns the file, which matters
-for public links that get picked up by an aggregator."""),
-        ("beta-features", "Using beta features",
-         """Features marked Beta are functional but unfinished. They are excluded from the
+for public links that get picked up by an aggregator.""",
+        ),
+        (
+            "beta-features",
+            "Using beta features",
+            """Features marked Beta are functional but unfinished. They are excluded from the
 SLA, may change or be withdrawn with a week's notice, and should not be relied on
 for production work.
 
-Opt in per workspace under Settings > Labs. Feedback goes to beta@acme.example."""),
-        ("deprecation", "How APIs and features are deprecated",
-         """Stable APIs are supported for at least 12 months after a deprecation notice.
+Opt in per workspace under Settings > Labs. Feedback goes to beta@acme.example.""",
+        ),
+        (
+            "deprecation",
+            "How APIs and features are deprecated",
+            """Stable APIs are supported for at least 12 months after a deprecation notice.
 Notices are published in the changelog, sent to workspace owners by email, and
 returned in a `Sunset` header on affected endpoints.
 
 Beta APIs may change with 30 days' notice. We do not remove a stable endpoint
-without a documented migration path."""),
-        ("support-scope", "What support covers",
-         f"""Support covers the use, configuration and behaviour of {PRODUCT}: setup,
+without a documented migration path.""",
+        ),
+        (
+            "support-scope",
+            "What support covers",
+            f"""Support covers the use, configuration and behaviour of {PRODUCT}: setup,
 troubleshooting, billing and account questions, and bug reports.
 
 Support does not cover writing your integration code, debugging your own
 application, general network administration on your side, or recovering data
 deleted beyond the retention window. We will always point you to the right
 documentation, and for integration work our solutions engineers are available on
-Enterprise plans."""),
-        ("account-suspension", "Why an account can be suspended",
-         """A workspace can be suspended for non-payment after the 14 day grace period, for
+Enterprise plans.""",
+        ),
+        (
+            "account-suspension",
+            "Why an account can be suspended",
+            """A workspace can be suspended for non-payment after the 14 day grace period, for
 a confirmed acceptable use violation, or at the request of the workspace owner.
 
 Suspension makes the workspace read-only rather than deleting it. Data is
 retained for 30 days after suspension and can be restored by settling the balance
 or resolving the violation.
 
-Reinstatement after an abuse suspension requires a human review."""),
-        ("data-portability", "Exporting all of your data",
-         """Owners and admins can export everything under Settings > Workspace > **Export**.
+Reinstatement after an abuse suspension requires a human review.""",
+        ),
+        (
+            "data-portability",
+            "Exporting all of your data",
+            """Owners and admins can export everything under Settings > Workspace > **Export**.
 The export includes files in their original formats, a JSON manifest of metadata,
 comments, and the audit log where retained.
 
 Exports are prepared asynchronously; you get an email with a signed download link
 valid for 7 days. A multi-terabyte workspace takes several hours. There is no
-charge and no limit on how often you export - portability is not gated."""),
-        ("price-changes", "How price changes are handled",
-         """Existing subscriptions keep their price for the remainder of the current term.
+charge and no limit on how often you export - portability is not gated.""",
+        ),
+        (
+            "price-changes",
+            "How price changes are handled",
+            """Existing subscriptions keep their price for the remainder of the current term.
 Price changes are announced at least 60 days before they take effect and apply at
 the next renewal.
 
 Annual customers are notified before their renewal date with enough time to
-cancel if they choose."""),
+cancel if they choose.""",
+        ),
     ]
     return [
         Doc(
@@ -2097,36 +2621,81 @@ cancel if they choose."""),
 def faq_docs() -> list[Doc]:
     """Short answers to the highest-volume questions."""
     faqs = [
-        ("trial-length", "How long is the free trial?",
-         "Every paid plan comes with a 14 day trial. No card is required to start it. At the end you are moved to Free unless you subscribe; nothing is deleted."),
-        ("change-region", "Can I move my workspace to another region?",
-         "Not in place. The region is fixed when the workspace is created. Moving means exporting and importing into a new workspace, which support can help plan for large datasets."),
-        ("multiple-workspaces", "Can one account belong to several workspaces?",
-         "Yes, with no limit. Switch between them from the top-left switcher. Each workspace bills separately."),
-        ("version-history", "How far back does version history go?",
-         "7 days on Free, 30 on Starter, 90 on Team, one year on Business, unlimited on Enterprise. Every save creates a version; restore from the file's History tab."),
-        ("file-locking", "Can I lock a file so nobody else edits it?",
-         "Yes - right-click and choose **Lock**. Locks are advisory in the desktop app and enforced in the web app, and expire automatically after 24 hours."),
-        ("guest-access", "Do guests count toward my seat limit?",
-         "No. Guests see only the projects they are added to and are free on every plan. Converting a guest to a member consumes a seat."),
-        ("api-availability", "Which plans include API access?",
-         "Team and above. Rate limits scale with the plan: 60 requests/minute on Team, 600 on Business, negotiated on Enterprise."),
-        ("mobile-offline", "Does the mobile app work offline?",
-         "Yes for files you have pinned. Tap the pin icon on a file or folder before you lose connectivity; changes sync when you reconnect."),
-        ("bulk-invite", "Can I invite many people at once?",
-         "Paste a comma-separated list into the invite box, or upload a CSV of email and role pairs. Business and Enterprise can provision automatically with SCIM instead."),
-        ("delete-vs-archive", "What is the difference between deleting and archiving a project?",
-         "Archiving makes a project read-only and halves its storage footprint, and is reversible at any time. Deleting moves it to trash for 30 days and then purges it permanently."),
-        ("shared-drive-migration", "Can I migrate from another provider?",
-         "Yes. Settings > Import supports Dropbox, Google Drive, Box and OneDrive, preserving folder structure and, where the source exposes it, sharing. Large migrations are best scheduled with support."),
-        ("custom-domain", "Can share links use my own domain?",
-         "On Enterprise, yes. Add a CNAME for the subdomain you want and we issue the certificate. Existing links keep working."),
-        ("service-account", "Should integrations use a personal account?",
-         "No. Use a service account so the integration survives staff turnover. Service accounts do not consume a seat when used only for integrations."),
-        ("email-in", "Can I email files into a project?",
-         "Each project has an address under Project settings > Email-in. Attachments land in an Inbox folder. The address accepts mail only from workspace members by default."),
-        ("two-accounts-same-email", "Can I have two accounts with the same email?",
-         "No. The email address is the identity. Use workspaces to separate contexts, or a plus-address for a genuinely separate account."),
+        (
+            "trial-length",
+            "How long is the free trial?",
+            "Every paid plan comes with a 14 day trial. No card is required to start it. At the end you are moved to Free unless you subscribe; nothing is deleted.",
+        ),
+        (
+            "change-region",
+            "Can I move my workspace to another region?",
+            "Not in place. The region is fixed when the workspace is created. Moving means exporting and importing into a new workspace, which support can help plan for large datasets.",
+        ),
+        (
+            "multiple-workspaces",
+            "Can one account belong to several workspaces?",
+            "Yes, with no limit. Switch between them from the top-left switcher. Each workspace bills separately.",
+        ),
+        (
+            "version-history",
+            "How far back does version history go?",
+            "7 days on Free, 30 on Starter, 90 on Team, one year on Business, unlimited on Enterprise. Every save creates a version; restore from the file's History tab.",
+        ),
+        (
+            "file-locking",
+            "Can I lock a file so nobody else edits it?",
+            "Yes - right-click and choose **Lock**. Locks are advisory in the desktop app and enforced in the web app, and expire automatically after 24 hours.",
+        ),
+        (
+            "guest-access",
+            "Do guests count toward my seat limit?",
+            "No. Guests see only the projects they are added to and are free on every plan. Converting a guest to a member consumes a seat.",
+        ),
+        (
+            "api-availability",
+            "Which plans include API access?",
+            "Team and above. Rate limits scale with the plan: 60 requests/minute on Team, 600 on Business, negotiated on Enterprise.",
+        ),
+        (
+            "mobile-offline",
+            "Does the mobile app work offline?",
+            "Yes for files you have pinned. Tap the pin icon on a file or folder before you lose connectivity; changes sync when you reconnect.",
+        ),
+        (
+            "bulk-invite",
+            "Can I invite many people at once?",
+            "Paste a comma-separated list into the invite box, or upload a CSV of email and role pairs. Business and Enterprise can provision automatically with SCIM instead.",
+        ),
+        (
+            "delete-vs-archive",
+            "What is the difference between deleting and archiving a project?",
+            "Archiving makes a project read-only and halves its storage footprint, and is reversible at any time. Deleting moves it to trash for 30 days and then purges it permanently.",
+        ),
+        (
+            "shared-drive-migration",
+            "Can I migrate from another provider?",
+            "Yes. Settings > Import supports Dropbox, Google Drive, Box and OneDrive, preserving folder structure and, where the source exposes it, sharing. Large migrations are best scheduled with support.",
+        ),
+        (
+            "custom-domain",
+            "Can share links use my own domain?",
+            "On Enterprise, yes. Add a CNAME for the subdomain you want and we issue the certificate. Existing links keep working.",
+        ),
+        (
+            "service-account",
+            "Should integrations use a personal account?",
+            "No. Use a service account so the integration survives staff turnover. Service accounts do not consume a seat when used only for integrations.",
+        ),
+        (
+            "email-in",
+            "Can I email files into a project?",
+            "Each project has an address under Project settings > Email-in. Attachments land in an Inbox folder. The address accepts mail only from workspace members by default.",
+        ),
+        (
+            "two-accounts-same-email",
+            "Can I have two accounts with the same email?",
+            "No. The email address is the identity. Use workspaces to separate contexts, or a plus-address for a genuinely separate account.",
+        ),
     ]
     return [
         Doc(
@@ -2143,30 +2712,50 @@ def faq_docs() -> list[Doc]:
 def getting_started_docs() -> list[Doc]:
     """Onboarding walkthroughs, one per platform where it matters."""
     guides = [
-        ("install", "Install {PRODUCT}",
-         ["Download the current build from acme.example/download.",
-          "Run the installer and sign in with your workspace address.",
-          "Choose a local folder; the default is fine unless you keep data on a second drive.",
-          "Pick which projects sync to this device - start with one to confirm it works."],
-         "The tray or menu bar icon shows a green check and files appear in the chosen folder."),
-        ("invite-team", "Invite your team",
-         ["Settings > Members > **Invite**.",
-          "Paste addresses separated by commas and pick a role for each.",
-          "Members see every project; guests see only what you add them to.",
-          "Invitations expire after 7 days and can be resent."],
-         "Each invitee appears as Pending and flips to Active on acceptance."),
-        ("organise-projects", "Organise work into projects",
-         ["Create one project per team, client or initiative rather than per file type.",
-          "Set access at the project level; files inherit it.",
-          "Archive projects when they finish - archived projects stay searchable and cost half the storage.",
-          "Use a shallow folder structure inside projects; search is faster than nesting."],
-         "The project list reflects how your team actually talks about its work."),
-        ("first-share", "Share your first file",
-         ["Select a file and choose **Share**.",
-          "Share with a person by email, or create a link.",
-          "Set an expiry and, for anything sensitive, a password.",
-          "Choose view or edit access - view is the safe default."],
-         "The recipient opens the file and the share appears in Activity."),
+        (
+            "install",
+            "Install {PRODUCT}",
+            [
+                "Download the current build from acme.example/download.",
+                "Run the installer and sign in with your workspace address.",
+                "Choose a local folder; the default is fine unless you keep data on a second drive.",
+                "Pick which projects sync to this device - start with one to confirm it works.",
+            ],
+            "The tray or menu bar icon shows a green check and files appear in the chosen folder.",
+        ),
+        (
+            "invite-team",
+            "Invite your team",
+            [
+                "Settings > Members > **Invite**.",
+                "Paste addresses separated by commas and pick a role for each.",
+                "Members see every project; guests see only what you add them to.",
+                "Invitations expire after 7 days and can be resent.",
+            ],
+            "Each invitee appears as Pending and flips to Active on acceptance.",
+        ),
+        (
+            "organise-projects",
+            "Organise work into projects",
+            [
+                "Create one project per team, client or initiative rather than per file type.",
+                "Set access at the project level; files inherit it.",
+                "Archive projects when they finish - archived projects stay searchable and cost half the storage.",
+                "Use a shallow folder structure inside projects; search is faster than nesting.",
+            ],
+            "The project list reflects how your team actually talks about its work.",
+        ),
+        (
+            "first-share",
+            "Share your first file",
+            [
+                "Select a file and choose **Share**.",
+                "Share with a person by email, or create a link.",
+                "Set an expiry and, for anything sensitive, a password.",
+                "Choose view or edit access - view is the safe default.",
+            ],
+            "The recipient opens the file and the share appears in Activity.",
+        ),
     ]
     docs = []
     for slug, title, steps, verify in guides:
@@ -2376,17 +2965,22 @@ when items that satisfy all the conditions above are still not syncing.
 def extra_security_docs() -> list[Doc]:
     """Second batch of security articles."""
     topics = [
-        ("password-requirements", "Password requirements",
-         """Passwords must be at least 12 characters. We impose no composition rules -
+        (
+            "password-requirements",
+            "Password requirements",
+            """Passwords must be at least 12 characters. We impose no composition rules -
 forced symbols and digits demonstrably produce weaker, more predictable
 passwords - but we do check every new password against a corpus of known-breached
 credentials and refuse matches.
 
 Admins on Business and Enterprise can require a minimum length up to 64 and set a
 rotation period. We advise against rotation: NIST withdrew that recommendation
-because scheduled rotation drives people toward predictable variations."""),
-        ("api-key-handling", "Handling API keys safely",
-         """A key's secret is shown exactly once, at creation. Store it in a secret manager,
+because scheduled rotation drives people toward predictable variations.""",
+        ),
+        (
+            "api-key-handling",
+            "Handling API keys safely",
+            """A key's secret is shown exactly once, at creation. Store it in a secret manager,
 never in source control or a CI configuration file.
 
 Scope each key to the narrowest set of permissions the job needs, and create one
@@ -2395,17 +2989,23 @@ revoked without breaking everything at once.
 
 Rotate with the rotate endpoint, which keeps the old secret valid for 24 hours so
 you can deploy the new one without downtime. Keys unused for 90 days are flagged
-in the developer settings; revoke them."""),
-        ("sub-processors", "Sub-processors",
-         """Our current sub-processors are listed at acme.example/legal/subprocessors, with
+in the developer settings; revoke them.""",
+        ),
+        (
+            "sub-processors",
+            "Sub-processors",
+            """Our current sub-processors are listed at acme.example/legal/subprocessors, with
 the region and purpose of each: cloud hosting, email delivery, payment processing,
 error monitoring and support tooling.
 
 Subscribe on that page to be notified 30 days before a new sub-processor is
 added, which is the window in which Enterprise customers may object under the
-DPA."""),
-        ("bug-bounty", "Reporting a vulnerability",
-         """Report to security@acme.example, encrypted with the PGP key published at
+DPA.""",
+        ),
+        (
+            "bug-bounty",
+            "Reporting a vulnerability",
+            """Report to security@acme.example, encrypted with the PGP key published at
 acme.example/.well-known/security.txt. We acknowledge within one business day and
 aim to triage within three.
 
@@ -2414,9 +3014,12 @@ desktop and mobile clients. Out of scope: denial of service, social engineering,
 issues requiring a rooted or jailbroken device, and reports generated by a
 scanner without a working proof of concept.
 
-We will not pursue legal action against research that follows this policy."""),
-        ("shared-responsibility", "Shared responsibility model",
-         """We are responsible for the security *of* the platform: infrastructure, encryption,
+We will not pursue legal action against research that follows this policy.""",
+        ),
+        (
+            "shared-responsibility",
+            "Shared responsibility model",
+            """We are responsible for the security *of* the platform: infrastructure, encryption,
 availability, patching, and the integrity of the service.
 
 You are responsible for security *in* your workspace: who you invite and with
@@ -2425,9 +3028,12 @@ integrations you authorise, whether MFA is enforced, and the security of your ow
 devices and identity provider.
 
 Most incidents we see originate on the customer side of that line - usually an
-over-broad share link or an account without MFA."""),
-        ("data-residency", "Where your data is stored",
-         """Workspace content is stored in the region chosen at creation: us-east, eu-west or
+over-broad share link or an account without MFA.""",
+        ),
+        (
+            "data-residency",
+            "Where your data is stored",
+            """Workspace content is stored in the region chosen at creation: us-east, eu-west or
 ap-southeast. It stays there, including backups.
 
 Metadata needed to route requests - workspace ids, and the region mapping itself -
@@ -2435,39 +3041,52 @@ is global by necessity. Support tooling and billing records are held in us-east
 regardless of workspace region.
 
 The region cannot be changed after creation; moving means exporting and importing
-into a new workspace."""),
-        ("legal-hold", "Placing content under legal hold",
-         """Enterprise workspaces can place a project or an individual's content under legal
+into a new workspace.""",
+        ),
+        (
+            "legal-hold",
+            "Placing content under legal hold",
+            """Enterprise workspaces can place a project or an individual's content under legal
 hold from Settings > Compliance. Held content cannot be deleted by anyone,
 including workspace owners, and is exempt from the 30 day trash purge.
 
 Holds are recorded in the audit log with the actor and the reason. Only a
 compliance admin can release one. Held content still counts toward storage
-quota."""),
-        ("email-security", "Email authentication for notifications",
-         """Our notification mail is signed with DKIM, authorised by SPF, and covered by a
+quota.""",
+        ),
+        (
+            "email-security",
+            "Email authentication for notifications",
+            """Our notification mail is signed with DKIM, authorised by SPF, and covered by a
 DMARC policy of `reject` on acme.example. If a message claiming to be from us
 fails these checks, your mail server should already have rejected it.
 
 If your organisation rewrites or relays our mail in a way that breaks DKIM, ask
-IT to allowlist `no-reply@acme.example` rather than disabling DMARC checks."""),
-        ("byok", "Bringing your own encryption key",
-         """Enterprise workspaces can supply a customer-managed key through AWS KMS or Google
+IT to allowlist `no-reply@acme.example` rather than disabling DMARC checks.""",
+        ),
+        (
+            "byok",
+            "Bringing your own encryption key",
+            """Enterprise workspaces can supply a customer-managed key through AWS KMS or Google
 Cloud KMS. We use it to wrap the data encryption keys, so revoking it makes the
 workspace unreadable within minutes.
 
 That is the point of the feature, and it is not reversible: if the key is
 destroyed rather than merely disabled, the data is unrecoverable. Treat
 revocation as a break-glass action and test the process in a non-production
-workspace first."""),
-        ("logging-privacy", "What we log about your activity",
-         """We log request metadata - timestamps, workspace and user ids, IP addresses, user
+workspace first.""",
+        ),
+        (
+            "logging-privacy",
+            "What we log about your activity",
+            """We log request metadata - timestamps, workspace and user ids, IP addresses, user
 agents, endpoints, response codes and request ids. We do not log request bodies
 or file content.
 
 Operational logs are retained for 30 days. The customer-visible audit log is
 separate and retained per the retention article. Support staff querying logs for
-a ticket see only metadata unless you explicitly consent to content access."""),
+a ticket see only metadata unless you explicitly consent to content access.""",
+        ),
     ]
     return [
         Doc(
@@ -2484,65 +3103,89 @@ a ticket see only metadata unless you explicitly consent to content access."""),
 def extra_policy_docs() -> list[Doc]:
     """Second batch of policies."""
     topics = [
-        ("trial-terms", "Free trial terms",
-         """Every paid plan offers a 14 day trial, once per workspace, with no card required.
+        (
+            "trial-terms",
+            "Free trial terms",
+            """Every paid plan offers a 14 day trial, once per workspace, with no card required.
 Trials carry the full feature set of the plan, including the API and SSO.
 
 At the end the workspace moves to Free. Nothing is deleted, but content above the
 Free limits becomes read-only until you subscribe or reduce usage. We email a
-reminder three days before the trial ends."""),
-        ("nonprofit-discount", "Discounts for nonprofits and education",
-         """Registered nonprofits and accredited educational institutions receive 50% off
+reminder three days before the trial ends.""",
+        ),
+        (
+            "nonprofit-discount",
+            "Discounts for nonprofits and education",
+            """Registered nonprofits and accredited educational institutions receive 50% off
 Team and Business plans. Apply with proof of status at acme.example/nonprofit;
 verification takes about three business days.
 
 The discount applies at the next renewal and does not stack with annual billing
-promotions - you get whichever is larger."""),
-        ("reseller-policy", "Buying through a reseller",
-         """Enterprise plans may be purchased through an authorised reseller. Billing and
+promotions - you get whichever is larger.""",
+        ),
+        (
+            "reseller-policy",
+            "Buying through a reseller",
+            """Enterprise plans may be purchased through an authorised reseller. Billing and
 invoicing then run through them, while support and the technical relationship
 stay with us.
 
 Plan changes go through the reseller. Support requests come directly to us - you
-do not need to route a technical question through a procurement channel."""),
-        ("api-terms", "API terms of use",
-         """The API is for building integrations with your own workspace data. You may not
+do not need to route a technical question through a procurement channel.""",
+        ),
+        (
+            "api-terms",
+            "API terms of use",
+            """The API is for building integrations with your own workspace data. You may not
 use it to mirror the service, to resell storage, or to circumvent plan limits.
 
 Respect the rate limits and the `Retry-After` header. Persistent disregard for
 backoff is treated as abuse and can result in key revocation.
 
 Cache responses where you sensibly can; polling an unchanged resource every
-second helps nobody."""),
-        ("content-ownership", "Who owns the content you upload",
-         """You do. We claim no ownership of customer content and acquire only the licence
+second helps nobody.""",
+        ),
+        (
+            "content-ownership",
+            "Who owns the content you upload",
+            """You do. We claim no ownership of customer content and acquire only the licence
 necessary to store, transmit, back up and display it to the people you share it
 with.
 
 That licence ends when you delete the content or close the account, subject to
-the backup ageing window described in the retention article."""),
-        ("third-party-apps", "Using third-party apps with Acme Cloud",
-         """Apps in our directory are reviewed for scope hygiene and basic security, but
+the backup ageing window described in the retention article.""",
+        ),
+        (
+            "third-party-apps",
+            "Using third-party apps with Acme Cloud",
+            """Apps in our directory are reviewed for scope hygiene and basic security, but
 they are operated by their publishers, not by us. Your data flowing into a
 third-party app is governed by that publisher's terms.
 
 Admins can restrict which apps members may authorise under Settings > Security >
-App governance, which is worth doing before a rollout rather than after."""),
-        ("service-changes", "Changes to the service",
-         """We add and improve features continuously. Material changes that reduce
+App governance, which is worth doing before a rollout rather than after.""",
+        ),
+        (
+            "service-changes",
+            "Changes to the service",
+            """We add and improve features continuously. Material changes that reduce
 functionality are announced at least 30 days ahead in the changelog and by email
 to workspace owners.
 
 Stable API deprecations follow the longer 12 month schedule in the deprecation
-policy. We do not remove a documented capability without a migration path."""),
-        ("dispute-resolution", "Resolving a billing dispute",
-         f"""Raise a dispute with {SUPPORT_EMAIL} before contacting your bank. A chargeback
+policy. We do not remove a documented capability without a migration path.""",
+        ),
+        (
+            "dispute-resolution",
+            "Resolving a billing dispute",
+            f"""Raise a dispute with {SUPPORT_EMAIL} before contacting your bank. A chargeback
 automatically suspends the workspace while the bank investigates, which is
 usually worse for you than a conversation with us.
 
 We respond to disputes within two business days. Where we are wrong we refund
 without argument; where we are not, you get the invoice detail and the usage
-records behind the charge."""),
+records behind the charge.""",
+        ),
     ]
     return [
         Doc(
@@ -2559,46 +3202,106 @@ records behind the charge."""),
 def extra_faq_docs() -> list[Doc]:
     """Second batch of short answers."""
     faqs = [
-        ("keyboard-shortcuts", "Are there keyboard shortcuts?",
-         "Yes. Press `?` anywhere in the web app for the full list. The ones worth learning are `/` to search, `u` to upload, and `g` then `p` to jump to projects."),
-        ("dark-mode", "Is there a dark mode?",
-         "Yes - Settings > Appearance, with Light, Dark and System options. The desktop and mobile apps follow the OS setting by default."),
-        ("file-requests", "Can someone send me files without an account?",
-         "Yes. Create a file request from a folder's menu and share the link. Uploads land in that folder and the sender never signs in or sees your other files."),
-        ("watermarks", "Can I watermark shared files?",
-         "On Business and Enterprise, yes. Enable it per share link; the viewer's email and the time are overlaid on previews and downloads of PDFs and images."),
-        ("download-limits", "Can I limit how many times a link is downloaded?",
-         "Yes on Business and above. Set a download cap alongside the expiry when creating the link; the link stops working once the cap is reached."),
-        ("api-sandbox", "Is there a sandbox for API testing?",
-         "Create a separate free workspace and use a key scoped to it. There is no separate sandbox host - the same `/v1` API serves it."),
-        ("sdk-languages", "Which SDKs do you publish?",
-         "Official clients for Python, TypeScript, Go and Java, all on the public package registries. The REST API is stable and documented for anything else."),
-        ("bulk-download", "How do I download an entire project?",
-         "Select the project and choose Download as ZIP for anything under 20 GB. Above that, use the export endpoint, which produces a signed multi-part download."),
-        ("restore-old-version", "How do I go back to an earlier version of a file?",
-         "Open the file's History tab, preview the version you want and choose Restore. Restoring creates a new version rather than erasing the ones in between."),
-        ("who-viewed", "Can I see who viewed a shared file?",
-         "Yes for links created on Team and above. The file's Activity tab lists viewers by email where they were signed in, and by IP where they were not."),
-        ("trash-retention", "How long do deleted files stay recoverable?",
-         "30 days on every plan, after which they are purged from primary storage and age out of backups within a further 35 days. There is no way to recover them afterwards."),
-        ("storage-shared", "Is storage per user or per workspace?",
-         "Per workspace. One member uploading a large dataset consumes the shared allowance, which is why Settings > Usage breaks it down by project."),
-        ("edit-in-office", "Can I edit Office documents in place?",
-         "Yes. Opening a DOCX, XLSX or PPTX offers editing in the browser or in the desktop Office app, saving back to Acme Cloud as a new version."),
-        ("two-factor-sms", "Do you support SMS as a second factor?",
-         "No, deliberately. SMS is vulnerable to SIM-swap attacks. We support TOTP apps and hardware security keys (WebAuthn), which are both stronger."),
-        ("security-keys", "Can I use a hardware security key?",
-         "Yes. Settings > Security > Security keys supports WebAuthn keys such as YubiKey. Register at least two so losing one is not a lockout."),
-        ("api-pagination", "How does pagination work in the API?",
-         "Cursor-based. Follow `next_cursor` from each response until it is null. Do not construct cursors yourself - they are opaque and their format may change."),
-        ("webhook-security", "How do I verify a webhook came from you?",
-         "Each delivery carries an `X-Acme-Signature` header: an HMAC-SHA256 of the raw body using your endpoint's signing secret. Compare it in constant time, against the raw bytes, before parsing."),
-        ("status-updates", "How do I find out about outages?",
-         f"Subscribe at {STATUS_PAGE} for email, RSS or webhook updates. Sev-1 incidents are also emailed to workspace owners automatically."),
-        ("account-manager", "Do I get a dedicated contact?",
-         "Enterprise customers get a named customer success manager and a shared Slack channel. Business customers get priority routing but not a named contact."),
-        ("training", "Do you offer training for my team?",
-         "Live onboarding sessions are included on Business and Enterprise. Self-serve video walkthroughs covering the same material are free for everyone at acme.example/learn."),
+        (
+            "keyboard-shortcuts",
+            "Are there keyboard shortcuts?",
+            "Yes. Press `?` anywhere in the web app for the full list. The ones worth learning are `/` to search, `u` to upload, and `g` then `p` to jump to projects.",
+        ),
+        (
+            "dark-mode",
+            "Is there a dark mode?",
+            "Yes - Settings > Appearance, with Light, Dark and System options. The desktop and mobile apps follow the OS setting by default.",
+        ),
+        (
+            "file-requests",
+            "Can someone send me files without an account?",
+            "Yes. Create a file request from a folder's menu and share the link. Uploads land in that folder and the sender never signs in or sees your other files.",
+        ),
+        (
+            "watermarks",
+            "Can I watermark shared files?",
+            "On Business and Enterprise, yes. Enable it per share link; the viewer's email and the time are overlaid on previews and downloads of PDFs and images.",
+        ),
+        (
+            "download-limits",
+            "Can I limit how many times a link is downloaded?",
+            "Yes on Business and above. Set a download cap alongside the expiry when creating the link; the link stops working once the cap is reached.",
+        ),
+        (
+            "api-sandbox",
+            "Is there a sandbox for API testing?",
+            "Create a separate free workspace and use a key scoped to it. There is no separate sandbox host - the same `/v1` API serves it.",
+        ),
+        (
+            "sdk-languages",
+            "Which SDKs do you publish?",
+            "Official clients for Python, TypeScript, Go and Java, all on the public package registries. The REST API is stable and documented for anything else.",
+        ),
+        (
+            "bulk-download",
+            "How do I download an entire project?",
+            "Select the project and choose Download as ZIP for anything under 20 GB. Above that, use the export endpoint, which produces a signed multi-part download.",
+        ),
+        (
+            "restore-old-version",
+            "How do I go back to an earlier version of a file?",
+            "Open the file's History tab, preview the version you want and choose Restore. Restoring creates a new version rather than erasing the ones in between.",
+        ),
+        (
+            "who-viewed",
+            "Can I see who viewed a shared file?",
+            "Yes for links created on Team and above. The file's Activity tab lists viewers by email where they were signed in, and by IP where they were not.",
+        ),
+        (
+            "trash-retention",
+            "How long do deleted files stay recoverable?",
+            "30 days on every plan, after which they are purged from primary storage and age out of backups within a further 35 days. There is no way to recover them afterwards.",
+        ),
+        (
+            "storage-shared",
+            "Is storage per user or per workspace?",
+            "Per workspace. One member uploading a large dataset consumes the shared allowance, which is why Settings > Usage breaks it down by project.",
+        ),
+        (
+            "edit-in-office",
+            "Can I edit Office documents in place?",
+            "Yes. Opening a DOCX, XLSX or PPTX offers editing in the browser or in the desktop Office app, saving back to Acme Cloud as a new version.",
+        ),
+        (
+            "two-factor-sms",
+            "Do you support SMS as a second factor?",
+            "No, deliberately. SMS is vulnerable to SIM-swap attacks. We support TOTP apps and hardware security keys (WebAuthn), which are both stronger.",
+        ),
+        (
+            "security-keys",
+            "Can I use a hardware security key?",
+            "Yes. Settings > Security > Security keys supports WebAuthn keys such as YubiKey. Register at least two so losing one is not a lockout.",
+        ),
+        (
+            "api-pagination",
+            "How does pagination work in the API?",
+            "Cursor-based. Follow `next_cursor` from each response until it is null. Do not construct cursors yourself - they are opaque and their format may change.",
+        ),
+        (
+            "webhook-security",
+            "How do I verify a webhook came from you?",
+            "Each delivery carries an `X-Acme-Signature` header: an HMAC-SHA256 of the raw body using your endpoint's signing secret. Compare it in constant time, against the raw bytes, before parsing.",
+        ),
+        (
+            "status-updates",
+            "How do I find out about outages?",
+            f"Subscribe at {STATUS_PAGE} for email, RSS or webhook updates. Sev-1 incidents are also emailed to workspace owners automatically.",
+        ),
+        (
+            "account-manager",
+            "Do I get a dedicated contact?",
+            "Enterprise customers get a named customer success manager and a shared Slack channel. Business customers get priority routing but not a named contact.",
+        ),
+        (
+            "training",
+            "Do you offer training for my team?",
+            "Live onboarding sessions are included on Business and Enterprise. Self-serve video walkthroughs covering the same material are free for everyone at acme.example/learn.",
+        ),
     ]
     return [
         Doc(
@@ -2669,9 +3372,7 @@ def _write_index(kb_dir: Path, docs: list[Doc]) -> None:
     for doc in docs:
         by_category[doc.category] = by_category.get(doc.category, 0) + 1
 
-    rows = "\n".join(
-        f"| {category} | {count} |" for category, count in sorted(by_category.items())
-    )
+    rows = "\n".join(f"| {category} | {count} |" for category, count in sorted(by_category.items()))
     kb_dir.mkdir(parents=True, exist_ok=True)
     (kb_dir / "README.md").write_text(
         f"""# Support knowledge base

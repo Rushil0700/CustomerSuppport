@@ -19,7 +19,6 @@ from typing import Any
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    Enum as SAEnum,
     Float,
     ForeignKey,
     Index,
@@ -28,6 +27,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -220,9 +222,7 @@ class TicketFeedback(Base):
     ticket: Mapped[Ticket] = relationship(back_populates="feedback")
 
     __table_args__ = (
-        CheckConstraint(
-            "satisfaction_score BETWEEN 1 AND 5", name="ck_feedback_score_range"
-        ),
+        CheckConstraint("satisfaction_score BETWEEN 1 AND 5", name="ck_feedback_score_range"),
         UniqueConstraint("ticket_id", name="uq_feedback_ticket"),
     )
 

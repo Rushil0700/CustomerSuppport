@@ -40,12 +40,21 @@ MAX_FAILURE_RATIO = float(os.environ.get("LOAD_MAX_FAILURE_RATIO", "0.01"))
 MIN_RPS = float(os.environ.get("LOAD_MIN_RPS", "300"))
 
 SUBJECTS = [
-    "Cannot sign in", "Files stuck syncing", "Where is my invoice",
-    "API returning 429", "Slack integration broken", "How many seats do we get",
-    "Invite email never arrived", "How do I enable 2FA", "Storage is full",
-    "Share link says not available", "Payment was declined",
-    "Which file types can you preview", "How far back is version history",
-    "Desktop app will not start", "Notifications stopped arriving",
+    "Cannot sign in",
+    "Files stuck syncing",
+    "Where is my invoice",
+    "API returning 429",
+    "Slack integration broken",
+    "How many seats do we get",
+    "Invite email never arrived",
+    "How do I enable 2FA",
+    "Storage is full",
+    "Share link says not available",
+    "Payment was declined",
+    "Which file types can you preview",
+    "How far back is version history",
+    "Desktop app will not start",
+    "Notifications stopped arriving",
 ]
 
 BODIES = [
@@ -151,9 +160,7 @@ class SlackWebhookUser(HttpUser):
                 "ts": f"{random.random() * 1e9:.6f}",
             },
         }
-        self.client.post(
-            "/api/webhooks/slack", json=payload, name="POST /api/webhooks/slack"
-        )
+        self.client.post("/api/webhooks/slack", json=payload, name="POST /api/webhooks/slack")
 
 
 class SearchUser(HttpUser):

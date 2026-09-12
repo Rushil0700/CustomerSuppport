@@ -16,7 +16,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from support_common.app import create_app
 from support_common.database import check_database, dispose_engine, get_session, init_engine
 from support_common.enums import Channel, MessageSender, TicketStatus
@@ -148,16 +147,16 @@ async def submit_feedback(
     # A dissatisfied customer on an auto-resolved ticket is the signal that the
     # answer was wrong; reopening puts it back in front of a human.
     if payload.satisfaction_score <= 2 or payload.resolved_issue is False:
-        ticket = await session.scalar(
-            select(Ticket).where(Ticket.ticket_id == payload.ticket_id)
-        )
+        ticket = await session.scalar(select(Ticket).where(Ticket.ticket_id == payload.ticket_id))
         if ticket is not None and ticket.status is TicketStatus.RESOLVED:
             ticket.status = TicketStatus.REOPENED
             session.add(
                 TicketMessage(
                     ticket_id=payload.ticket_id,
                     sender=MessageSender.SYSTEM,
-                    message=f"Reopened after a satisfaction score of {payload.satisfaction_score}/5.",
+                    message=(
+                        f"Reopened after a satisfaction score of {payload.satisfaction_score}/5."
+                    ),
                     metadata_json={"reopened_by": "feedback"},
                 )
             )
@@ -171,19 +170,14 @@ async def submit_feedback(
 async def feedback_summary(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     """Average score, response count and distribution."""
     average, count = (
-        await session.execute(
-            select(func.avg(TicketFeedback.satisfaction_score), func.count())
-        )
+        await session.execute(select(func.avg(TicketFeedback.satisfaction_score), func.count()))
     ).one()
-    distribution = dict(
-        (
-            await session.execute(
-                select(TicketFeedback.satisfaction_score, func.count()).group_by(
-                    TicketFeedback.satisfaction_score
-                )
-            )
-        ).all()
+    distribution_rows = await session.execute(
+        select(TicketFeedback.satisfaction_score, func.count()).group_by(
+            TicketFeedback.satisfaction_score
+        )
     )
+    distribution: dict[int, int] = dict(distribution_rows.all())  # type: ignore[arg-type]
     return {
         "responses": count or 0,
         "average_score": round(float(average or 0), 3),
@@ -191,9 +185,7 @@ async def feedback_summary(session: AsyncSession = Depends(get_session)) -> dict
     }
 
 
-@router.get(
-    "/channels", summary="Channel configuration", dependencies=[Depends(require_api_key)]
-)
+@router.get("/channels", summary="Channel configuration", dependencies=[Depends(require_api_key)])
 async def channels() -> dict[str, Any]:
     """Which channels are wired up and whether each is currently reachable."""
     return {

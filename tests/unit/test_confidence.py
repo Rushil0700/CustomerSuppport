@@ -7,11 +7,9 @@ decides which tickets a customer sees an automated answer to.
 from __future__ import annotations
 
 import pytest
-
+from agent_service.confidence import check_sensitive, score_confidence
 from support_common.enums import EscalationReason
 from support_common.schemas import Citation
-
-from agent_service.confidence import check_sensitive, score_confidence
 
 GOOD_ANSWER = (
     "To reset your password, go to the login page and choose Forgot password. "
@@ -36,9 +34,7 @@ class TestSensitiveTopics:
             ("We want to terminate our contract", EscalationReason.POLICY_REQUIRED),
         ],
     )
-    def test_sensitive_text_forces_escalation(
-        self, text: str, reason: EscalationReason
-    ) -> None:
+    def test_sensitive_text_forces_escalation(self, text: str, reason: EscalationReason) -> None:
         assert check_sensitive("", text) is reason
 
     @pytest.mark.parametrize(
@@ -117,17 +113,13 @@ class TestConfidenceScoring:
         assert "answer_asks_a_question" in result.penalties
         assert result.final < 0.70
 
-    def test_a_very_short_answer_is_penalised(
-        self, strong_citations: list[Citation]
-    ) -> None:
+    def test_a_very_short_answer_is_penalised(self, strong_citations: list[Citation]) -> None:
         result = score_confidence(
             model_confidence=0.9, citations=strong_citations, answer="Reset it.", searches=1
         )
         assert "answer_too_short" in result.penalties
 
-    def test_the_score_is_always_within_bounds(
-        self, strong_citations: list[Citation]
-    ) -> None:
+    def test_the_score_is_always_within_bounds(self, strong_citations: list[Citation]) -> None:
         for model_confidence in (0.0, 0.5, 1.0):
             result = score_confidence(
                 model_confidence=model_confidence,

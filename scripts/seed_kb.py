@@ -21,12 +21,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "services" / "rag-engine"))
 
+from rag_engine.indexer import build_index  # noqa: E402
+from rag_engine.retriever import Retriever  # noqa: E402
 from support_common.config import get_settings  # noqa: E402
 from support_common.logging import configure_logging, get_logger  # noqa: E402
 from support_common.schemas import SearchRequest  # noqa: E402
-
-from rag_engine.indexer import build_index  # noqa: E402
-from rag_engine.retriever import Retriever  # noqa: E402
 
 log = get_logger("seed_kb")
 
@@ -35,11 +34,15 @@ async def run(reset: bool, check: str | None, top_k: int) -> int:
     settings = get_settings()
     configure_logging("seed-kb", level=settings.log_level, fmt="console")
 
+    model_name = (
+        settings.embedding_model
+        if settings.embedding_provider == "sentence_transformers"
+        else settings.ollama_embedding_model
+    )
     print(
         f"Indexing {settings.kb_dir}\n"
         f"  backend:    {settings.vector_backend}\n"
-        f"  embeddings: {settings.embedding_provider} / "
-        f"{settings.embedding_model if settings.embedding_provider == 'sentence_transformers' else settings.ollama_embedding_model}\n"
+        f"  embeddings: {settings.embedding_provider} / {model_name}\n"
         f"  chunking:   {settings.kb_chunk_size} chars, {settings.kb_chunk_overlap} overlap\n"
     )
 
@@ -57,13 +60,13 @@ async def run(reset: bool, check: str | None, top_k: int) -> int:
 
     if check:
         retriever = Retriever(settings=settings)
-        response = await retriever.search(
-            SearchRequest(query=check, top_k=top_k), use_cache=False
-        )
+        response = await retriever.search(SearchRequest(query=check, top_k=top_k), use_cache=False)
         print(f'\nSearch: "{check}"  ({response.took_ms}ms)')
         if not response.results:
-            print("  no results above the score floor "
-                  f"({settings.rag_min_score}) - the index may be empty")
+            print(
+                "  no results above the score floor "
+                f"({settings.rag_min_score}) - the index may be empty"
+            )
             return 1
         for rank, doc in enumerate(response.results, start=1):
             preview = " ".join(doc.content.split())[:110]

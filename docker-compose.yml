@@ -1,0 +1,208 @@
+# Local development stack.
+#
+#   make up            start postgres, redis and the four services
+#   make kb            index the knowledge base into Chroma
+#   make logs          follow everything
+#
+# Ollama: on Linux with an NVIDIA GPU, start the bundled container with
+#   docker compose --profile ollama up -d
+# On macOS, Docker has no GPU passthrough, so run Ollama natively
+# (`ollama serve`) and leave OLLAMA_HOST pointing at host.docker.internal,
+# which is the default below.
+
+name: support-automation
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  environment: &service-env
+    ENVIRONMENT: local
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    LOG_FORMAT: ${LOG_FORMAT:-json}
+    DATABASE_URL: postgresql+asyncpg://support:support@postgres:5432/support
+    REDIS_URL: redis://redis:6379/0
+    OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+    TICKET_RECEIVER_URL: http://ticket-receiver:8001
+    RAG_ENGINE_URL: http://rag-engine:8002
+    AGENT_URL: http://agent:8003
+    DISPATCHER_URL: http://dispatcher:8004
+    API_KEY: ${API_KEY:-dev-local-key}
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  networks: [support]
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: support
+      POSTGRES_DB: support
+      # Trades a little crash-durability for a large write speedup; this is a
+      # development database, not the production one.
+      PGOPTIONS: "-c synchronous_commit=off"
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support -d support"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [support]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [support]
+    restart: unless-stopped
+
+  # Linux + NVIDIA only. See the note at the top of this file.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: 4
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks: [support]
+    restart: unless-stopped
+
+  ticket-receiver:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/ticket-receiver/Dockerfile
+    image: support/ticket-receiver:local
+    ports: ["8001:8001"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  rag-engine:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/rag-engine/Dockerfile
+    image: support/rag-engine:local
+    ports: ["8002:8002"]
+    environment:
+      <<: *service-env
+      CHROMA_PERSIST_DIR: /data/chroma
+      KB_DIR: /app/support-kb
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-sentence_transformers}
+    volumes:
+      - chroma-data:/data/chroma
+    depends_on:
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  agent:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/agent/Dockerfile
+    image: support/agent:local
+    ports: ["8003:8003"]
+    depends_on:
+      rag-engine: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  dispatcher:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: services/dispatcher/Dockerfile
+    image: support/dispatcher:local
+    ports: ["8004:8004"]
+    environment:
+      <<: *service-env
+      # Never send real messages from the local stack unless asked to.
+      DISPATCH_DRY_RUN: ${DISPATCH_DRY_RUN:-true}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Catches outbound mail when DISPATCH_DRY_RUN=false. Web UI on :8025.
+  mailpit:
+    profiles: ["mail"]
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+    networks: [support]
+    restart: unless-stopped
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    volumes:
+      - ./kubernetes/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [support]
+    restart: unless-stopped
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./kubernetes/monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+    depends_on: [prometheus]
+    networks: [support]
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  chroma-data:
+  ollama-models:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  support:
+    driver: bridge

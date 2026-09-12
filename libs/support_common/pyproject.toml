@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "support-common"
+version = "0.1.0"
+description = "Shared config, models, schemas and utilities for the support automation services"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
+    "structlog>=24.4,<26",
+    "prometheus-client>=0.21,<1",
+    "httpx>=0.27,<0.29",
+    "tenacity>=9.0,<10",
+]
+
+[tool.setuptools.packages.find]
+include = ["support_common*"]

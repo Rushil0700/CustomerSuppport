@@ -1,0 +1,66 @@
+[project]
+name = "customer-support-automation-local"
+version = "0.1.0"
+description = "Auto-resolve support tickets with RAG + local LLM agents (Ollama)"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["database/migrations", "support-kb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ASYNC", "RUF"]
+ignore = [
+    "B008",   # FastAPI Depends() in defaults is the documented idiom
+    "RUF012", # ClassVar annotations not required for our config dicts
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+warn_unused_ignores = false
+exclude = "(database/migrations|tests/load)"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = [
+    "libs/support_common",
+    "services/ticket-receiver",
+    "services/rag-engine",
+    "services/agent",
+    "services/dispatcher",
+]
+markers = [
+    "integration: requires Postgres/Redis/Ollama (deselect with -m 'not integration')",
+    "slow: takes more than a few seconds",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+branch = true
+source = ["libs/support_common/support_common", "services"]
+omit = ["*/tests/*", "*/migrations/*", "*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

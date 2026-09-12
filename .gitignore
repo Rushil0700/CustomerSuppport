@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.Python
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Environment
+.env
+.env.local
+*.local
+
+# Data / models (regenerate with `make kb` / `make seed`)
+data/
+chroma/
+.chroma/
+*.sqlite3
+models/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log
+logs/
